@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { Profile } from "@/lib/schemas/profile";
 import { setupTestDatabase } from "./helpers/test-db";
 
-const testDb = await setupTestDatabase();
+await setupTestDatabase();
 const { db } = await import("@/lib/db");
 const { buildFtsQuery, search, toTerms } = await import("@/lib/rag/search");
 const { createProfile, deleteProfile, getProfile } = await import("@/lib/repositories/profiles");
@@ -53,7 +53,6 @@ beforeAll(async () => {
   await addDocument({ profileId: bobId }, "PROJECT", ["Microservices Node.js chez Bob."]);
 });
 
-afterAll(() => testDb.cleanup());
 
 describe("échappement de la requête FTS5", () => {
   test("chaque terme est entre guillemets, joint par OR, guillemets internes doublés", () => {

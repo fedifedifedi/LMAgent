@@ -51,7 +51,7 @@ describe("JSON Schema de profile_draft (schéma cible envoyé au modèle)", () =
     const gemini = sanitizeForGemini(schema) as Schema;
     expect(gemini.properties.experiences.items.properties.start).toEqual({
       type: "string",
-      description: "Year and month, format YYYY-MM",
+      description: "YYYY, or YYYY-MM only if the month is written in the source. Never add a month that is not written.",
     });
   });
 

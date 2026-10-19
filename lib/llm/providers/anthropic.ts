@@ -34,6 +34,8 @@ export function createAnthropicProvider(options: { apiKey: string; model: string
           messages,
           output_config: {
             format: { type: "json_schema", schema: sanitizeForAnthropic(request.jsonSchema) },
+            // Effort = profondeur de réflexion et dépense de tokens sur les modèles actuels.
+            ...(request.reasoning && { effort: request.reasoning }),
           },
         });
       } catch (error) {

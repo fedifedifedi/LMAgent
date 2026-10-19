@@ -1,8 +1,8 @@
 // Test réel du provider configuré dans .env.local (appels payants / soumis aux quotas).
 // Lancer : npm run llm:smoke   — la clé API n'est jamais lue ni affichée ici.
 import { z } from "zod";
+import { extractProfile } from "@/lib/agent/extract-profile";
 import { generateObject, getProvider, type LLMUsage } from "@/lib/llm";
-import { LLM_OUTPUTS } from "@/lib/schemas/llm-outputs";
 
 const CV = `Léa Dubois — Data scientist junior
 lea.dubois@example.com · Bordeaux · github.com/lea-dubois-example
@@ -58,12 +58,4 @@ await run("1. Petit schéma", () =>
   }),
 );
 
-await run("2. profile_draft (ProfileTargetSchema)", () =>
-  generateObject({
-    provider,
-    output: LLM_OUTPUTS.profile_draft,
-    system:
-      "Extract the candidate profile from the CV. Only use information present in the CV; leave fields out when absent. Keep the CV language for free text.",
-    prompt: CV,
-  }),
-);
+await run("2. extractProfile (profile_draft, réflexion basse)", () => extractProfile(CV, { provider }));

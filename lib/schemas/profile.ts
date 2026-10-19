@@ -1,10 +1,14 @@
 import { z } from "zod";
 
 // Les .describe() sont repris dans le JSON Schema envoyé au LLM (Gemini ne gère pas "pattern").
+// Dates à la précision de la source : un CV qui ne donne que l'année ne doit pas forcer un mois inventé.
 const yearMonth = z
   .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format attendu : YYYY-MM")
-  .describe("Year and month, format YYYY-MM");
+  .regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/, "Format attendu : YYYY ou YYYY-MM")
+  .describe("YYYY, or YYYY-MM only if the month is written in the source. Never add a month that is not written.");
+
+/** Date réduite à l'année (YYYY) : le formulaire la signale pour que l'utilisateur la précise ou la confirme. */
+export const isIncompleteDate = (date: string | null | undefined) => typeof date === "string" && /^\d{4}$/.test(date);
 
 const id = z
   .string()
@@ -64,7 +68,12 @@ export const AvailabilitySchema = z.object({
     .array(z.enum(["pfe-internship", "internship", "cdi", "cdd", "freelance", "apprenticeship", "part-time"]))
     .min(1),
   durationMonths: z.number().int().positive().optional(), // ex. 6 pour un stage PFE
-  startDate: z.union([z.iso.date(), yearMonth]), // YYYY-MM-DD ou YYYY-MM
+  // Une seule regex, sans format "date" : avec une union [iso.date, YYYY-MM], Gemini privilégiait la date
+  // complète et inventait le jour ("février 2027" -> 2027-02-02).
+  startDate: z
+    .string()
+    .regex(/^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/, "Format attendu : YYYY, YYYY-MM ou YYYY-MM-DD")
+    .describe("YYYY, YYYY-MM or YYYY-MM-DD, exactly as precise as written. Never add a month or a day that is not written."),
   mobility: z.object({
     countries: z.array(z.string().min(1)).default([]),
     cities: z.array(z.string().min(1)).default([]),

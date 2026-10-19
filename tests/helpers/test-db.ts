@@ -30,19 +30,16 @@ export async function createMigratedDatabase() {
   return { url, cleanup: () => removeDir(dir) };
 }
 
-/**
- * Crée une base migrée et pointe DATABASE_URL dessus.
- * À appeler AVANT d'importer lib/db (qui lit DATABASE_URL à l'import).
- */
-export async function setupTestDatabase() {
-  const migrated = await createMigratedDatabase();
-  process.env.DATABASE_URL = migrated.url;
+let shared: Promise<void> | undefined;
 
-  return {
-    async cleanup() {
-      const { db } = await import("@/lib/db");
-      await db.$disconnect();
-      migrated.cleanup();
-    },
-  };
+/**
+ * Pointe DATABASE_URL sur une base migrée temporaire, partagée par tous les fichiers de test : bun test
+ * les exécute dans un même processus et lib/db est un singleton créé au premier import.
+ * À appeler AVANT d'importer lib/db. Chaque test crée ses propres données (ids uniques).
+ */
+export function setupTestDatabase(): Promise<void> {
+  shared ??= createMigratedDatabase().then(({ url }) => {
+    process.env.DATABASE_URL = url;
+  });
+  return shared;
 }

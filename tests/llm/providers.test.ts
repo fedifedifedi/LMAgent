@@ -66,6 +66,14 @@ describe("provider anthropic", () => {
     expect(result.usage).toMatchObject({ provider: "anthropic", model: "test-model", inputTokens: 30, outputTokens: 5, cacheReadTokens: 20 });
   });
 
+  test("reasoning → output_config.effort ; absent si non demandé", async () => {
+    const { provider, requests } = create([anthropicMessage('{"level":"C1","since":"2019"}')]);
+    await generateObject({ ...base, provider, reasoning: "low" });
+    await generateObject({ ...base, provider });
+    expect(requests[0].output_config.effort).toBe("low");
+    expect(requests[1].output_config.effort).toBeUndefined();
+  });
+
   test("relance : contenu assistant renvoyé tel quel, puis l'erreur Zod", async () => {
     const first = anthropicMessage('{"level":"C1","since":"depuis 2019"}');
     const { provider, requests } = create([first, anthropicMessage('{"level":"C1","since":"2019"}')]);
@@ -122,6 +130,16 @@ describe("provider gemini", () => {
     expect(JSON.stringify(config.responseJsonSchema)).not.toContain("pattern");
     expect(contents).toEqual([{ role: "user", parts: [{ text: "Anglais courant depuis 2019" }] }]);
     expect(result.usage).toMatchObject({ provider: "gemini", inputTokens: 40, outputTokens: 20, cacheReadTokens: 5 });
+  });
+
+  test("reasoning → thinkingConfig.thinkingLevel ; absent si non demandé", async () => {
+    const { provider, requests } = create([geminiResponse('{"level":"B2","since":"2019"}')]);
+    await generateObject({ ...base, provider, reasoning: "low" });
+    await generateObject({ ...base, provider, reasoning: "high" });
+    await generateObject({ ...base, provider });
+    expect(requests[0].config.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
+    expect(requests[1].config.thinkingConfig).toEqual({ thinkingLevel: "HIGH" });
+    expect(requests[2].config.thinkingConfig).toBeUndefined();
   });
 
   test("relance : tour model avec la réponse précédente puis tour user avec l'erreur", async () => {

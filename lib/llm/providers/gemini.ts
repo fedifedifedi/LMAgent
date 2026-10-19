@@ -1,4 +1,4 @@
-import { ApiError, GoogleGenAI, type Content } from "@google/genai";
+import { ApiError, GoogleGenAI, ThinkingLevel, type Content } from "@google/genai";
 import { LLMRateLimitError, LLMResponseError } from "@/lib/llm/errors";
 import { sanitizeForGemini } from "@/lib/llm/json-schema";
 import type { LLMProvider } from "@/lib/llm/types";
@@ -29,6 +29,9 @@ export function rateLimitError(error: ApiError): LLMRateLimitError {
   return new LLMRateLimitError("gemini", daily ? undefined : seconds, message, { cause: error });
 }
 
+// thinkingLevel (Gemini 3). Les modèles Gemini 2.5 utilisent thinkingBudget et peuvent refuser ce champ.
+const THINKING_LEVELS = { low: ThinkingLevel.LOW, medium: ThinkingLevel.MEDIUM, high: ThinkingLevel.HIGH } as const;
+
 /** Sortie structurée native : responseMimeType JSON + responseJsonSchema (mots-clés filtrés pour Gemini). */
 export function createGeminiProvider(options: { apiKey: string; model: string; client?: ModelsClient }): LLMProvider {
   const client = options.client ?? createClient(options.apiKey);
@@ -52,6 +55,7 @@ export function createGeminiProvider(options: { apiKey: string; model: string; c
             responseMimeType: "application/json",
             responseJsonSchema: sanitizeForGemini(request.jsonSchema),
             maxOutputTokens: request.maxOutputTokens,
+            ...(request.reasoning && { thinkingConfig: { thinkingLevel: THINKING_LEVELS[request.reasoning] } }),
           },
         });
       } catch (error) {

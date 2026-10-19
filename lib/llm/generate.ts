@@ -1,7 +1,7 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { LLMValidationError } from "@/lib/llm/errors";
 import { toTargetJsonSchema } from "@/lib/llm/json-schema";
-import type { ConversationTurn, LLMOutput, LLMProvider, LLMUsage } from "@/lib/llm/types";
+import type { ConversationTurn, LLMOutput, LLMProvider, LLMUsage, ReasoningLevel } from "@/lib/llm/types";
 
 /** Appel initial + 2 relances. */
 export const MAX_ATTEMPTS = 3;
@@ -13,16 +13,17 @@ export type GenerateObjectRequest<T extends z.ZodObject, L extends z.ZodType> = 
   prompt: string;
   provider: LLMProvider;
   maxOutputTokens?: number;
-  /** AppelÃ© une fois par appel, succÃ¨s ou Ã©chec de validation, avec la consommation cumulÃ©e. */
+  reasoning?: ReasoningLevel;
+  /** Appelé une fois par appel, succès ou échec de validation, avec la consommation cumulée. */
   onUsage?: (usage: LLMUsage) => void;
 };
 
 export type GenerateObjectResult<T> = {
   data: T;
   usage: LLMUsage;
-  /** true si le schÃ©ma cible n'a jamais Ã©tÃ© satisfait et que seul le schÃ©ma tolÃ©rant a pu rÃ©cupÃ©rer la sortie. */
+  /** true si le schéma cible n'a jamais été satisfait et que seul le schéma tolérant a pu récupérer la sortie. */
   degraded: boolean;
-  /** Erreurs du schÃ©ma cible Ã  la derniÃ¨re tentative, quand degraded est true. */
+  /** Erreurs du schéma cible à la dernière tentative, quand degraded est true. */
   issues?: string;
 };
 
@@ -44,8 +45,8 @@ function feedbackMessage(issues: string) {
 }
 
 /**
- * Boucle commune Ã  tous les providers : appel, validation Zod du schÃ©ma cible, relance avec l'erreur
- * renvoyÃ©e au modÃ¨le (MAX_ATTEMPTS appels au plus), puis schÃ©ma tolÃ©rant en dernier recours.
+ * Boucle commune à tous les providers : appel, validation Zod du schéma cible, relance avec l'erreur
+ * renvoyée au modèle (MAX_ATTEMPTS appels au plus), puis schéma tolérant en dernier recours.
  */
 export async function generateObject<T extends z.ZodObject, L extends z.ZodType = T>(
   request: GenerateObjectRequest<T, L>,
@@ -68,7 +69,7 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
     request.onUsage?.(usage);
   };
 
-  // Le schÃ©ma tolÃ©rant s'applique Ã  l'entrÃ©e brute (mÃªme JSON que celui validÃ© par le schÃ©ma cible).
+  // Le schéma tolérant s'applique à l'entrée brute (même JSON que celui validé par le schéma cible).
   const finalize = (raw: unknown, parsed: unknown) =>
     (output.lenientSchema ? output.lenientSchema.parse(raw) : parsed) as z.output<L>;
 
@@ -83,6 +84,7 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
       system: request.system,
       turns,
       maxOutputTokens: request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      reasoning: request.reasoning,
     });
 
     usage.attempts = attempt;

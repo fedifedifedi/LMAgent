@@ -13,6 +13,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/s
 - Installer les paquets avec Bun, PAS npm (npm échoue sur les gros téléchargements sur cette machine) :
   & "$env:USERPROFILE\.bun\bin\bun.exe" add <paquet>
 - N'installer un paquet qu'à l'étape où il sert.
+- Ne jamais modifier un fichier source avec Get-Content/Set-Content de PowerShell 5.1 : il lit l'UTF-8 sans BOM
+  comme du Windows-1252 et corrompt les accents. Utiliser les outils d'édition de fichiers.
 - Lancer le projet avec : npm run dev
 - Tests : npm test (bun test, base SQLite temporaire avec les migrations appliquées).
 
@@ -28,7 +30,14 @@ Next.js 16 (App Router), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/s
   C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
 
 ## Profil
-- Schéma : lib/schemas/profile.ts. ProfileSchema = profil validé (enregistré) ; ProfileDraftSchema = sortie tolérante de l'extraction, complétée dans le formulaire.
+- Schéma : lib/schemas/profile.ts. ProfileSchema = profil validé (enregistré) ; ProfileTargetSchema = cible stricte de l'extraction ;
+  ProfileDraftSchema = brouillon tolérant, complété dans le formulaire.
+- Dates à la précision de la source : YYYY ou YYYY-MM (startDate : jusqu'à YYYY-MM-DD). Jamais de mois ou de jour inventé ;
+  les dates à l'année sont signalées (isIncompleteDate, lib/cv/draft-warnings.ts). Pas de format "date" dans les schémas cibles :
+  Gemini inventait alors le jour.
+- Import du CV (étape 5) : /profiles/new → importCvAction → lib/cv/import.ts (texte via unpdf ou collé, extractProfile avec
+  reasoning "low", CvImport persisté) → /profiles/import/[id]. summary rempli seulement si le CV a son propre résumé.
+- Pages qui lisent la base (Cache Components) : lecture dans un composant sous <Suspense>, params lus dedans.
 
 ## LLM (lib/llm/)
 - Point d'entrée : generateObject({ output, system, prompt }) de lib/llm (server-only). Provider via LLM_PROVIDER

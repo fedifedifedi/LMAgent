@@ -21,6 +21,35 @@ model Profile {
   updatedAt DateTime   @updatedAt
   letters   Letter[]
   documents Document[]
+  cvImports CvImport[]
+}
+
+enum CvSource {
+  PDF
+  TEXT
+}
+
+/// Import d'un CV : texte extrait et brouillon LLM, conservés jusqu'à la validation du profil (étape 6).
+model CvImport {
+  id         String   @id @default(cuid())
+  source     CvSource
+  /// Nom du fichier PDF téléversé.
+  sourceName String?
+  /// Texte du CV après extraction et normalisation.
+  text       String
+  /// Brouillon validé par ProfileDraftSchema.
+  draft      Json
+  /// true si seul le schéma tolérant a pu récupérer la sortie du LLM ; issues contient alors les erreurs.
+  degraded   Boolean
+  issues     String?
+  /// LLMUsage de l'extraction (provider, modèle, tokens, tentatives).
+  usage      Json
+  /// Profil créé à partir de cet import, une fois validé.
+  profileId  String?
+  profile    Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([profileId])
 }
 
 enum LetterStatus {

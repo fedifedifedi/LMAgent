@@ -22,7 +22,14 @@ export type LLMUsage = TokenUsage & {
 /** Historique neutre ; `native` porte la réponse brute du provider pour la lui renvoyer telle quelle. */
 export type ConversationTurn = { role: "user"; text: string } | { role: "assistant"; text: string; native?: unknown };
 
+/**
+ * Effort de réflexion demandé au modèle. Bas pour la recopie structurée (extraction), plus élevé pour la
+ * rédaction et la critique. Non défini : défaut du modèle.
+ */
+export type ReasoningLevel = "low" | "medium" | "high";
+
 export type CompletionRequest = {
+  reasoning?: ReasoningLevel;
   /** Nom de la sortie (clé des fixtures mock). */
   name: string;
   jsonSchema: Record<string, unknown>;
