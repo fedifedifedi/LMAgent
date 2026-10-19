@@ -25,8 +25,10 @@ lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall
   demandant de coller le texte. Montrer à l'utilisateur ce qui a été extrait de l'offre (poste, entreprise, compétences demandées)
   avant ou pendant la génération. Pipeline sur le profil seul (RAG à l'étape 9). Persistance Letter + table LlmCall (tokens par appel).
   Bouton « Proposer un résumé » (rédigé par le modèle à partir du profil, relu par l'utilisateur) dans le formulaire du profil.
-- **8. Design et export PDF** : templates de lettre designés (React/Tailwind, les mêmes pour l'aperçu et le PDF, une page),
-  export via puppeteer-core + Edge.
+- **8. Design et export PDF** (en cours) : fait — 3 templates (Classique, Moderne, Compact ; référence
+  https://claude.ai/artifact/CBUj8Zqo38vCjGKP4XRCp1), export PDF, réduction automatique, « Modifier le texte », accueil animé.
+  Reste : template par défaut selon le choix de l'utilisateur (Classique en attendant).
+- **Plus tard** : bouton « Raccourcir la lettre » (réécriture par le modèle quand la lettre dépasse une page même à 10 pt).
 - **9. RAG sur documents** : téléversement des documents du profil, découpage, recherche FTS5 branchée sur matchProfile,
   puis recherche hybride avec embeddings Gemini (fusion RRF).
 - Plus tard : authentification.
@@ -149,6 +151,16 @@ Chaque étape = une fonction (lib/agent/letter-agent.ts), sortie validée par un
   refusées aussi après redirection, ports 80/443, 10 s, 2 Mo). Échec → message et bascule sur « Coller le texte ».
 - Mock : fixtures offer_analysis, profile_match, letter_draft, letter_critique, profile_summary ; "{{source:N}}" remplacé par
   le N-ième id autorisé du schéma reçu (marche avec n'importe quel profil). Test réel : npm run letter:smoke.
+
+## Lettre : mise en page, retouches, PDF
+- Templates : lib/letters/templates.ts (basePt) + components/letter/letter-document.tsx (un composant, aperçu ET PDF ;
+  tailles en pt/mm, variable --letter-scale). Aperçu à l'échelle par zoom CSS (components/letter/sheet-fit.tsx).
+- Retouches : lib/letters/stored.ts (applyEdits) — phrase inchangée = source gardée, phrase modifiée = sans source,
+  edited: true (« modifiée par toi », ✎ quand les sources sont affichées). Letter.generated garde la version de l'agent.
+- PDF : route GET /letters/[id]/pdf → lib/pdf/render.ts (puppeteer-core, Edge via CHROME_PATH, instance réutilisée)
+  qui imprime /letters/[id]/print (feuille seule, média print, thème clair forcé). Réduction du texte par pas de 2 %
+  jusqu'à 10 pt, puis export quand même avec avertissement (x-letter-overflow). AUCUN logo ni mention de LMAgent dans
+  le PDF ; titre du PDF = objet de la lettre (title.absolute). Limite : le champ Creator du PDF dit « HeadlessChrome ».
 
 ## RAG (étape 9)
 - Documents rattachés à un profil : descriptions de projets/README, rapports de stage, lettres de recommandation (sources de faits),

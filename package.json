@@ -13,7 +13,7 @@
     "db:generate": "prisma generate",
     "check:fts5": "node scripts/check-fts5.mjs",
     "letter:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/letter-smoke.ts",
-    "llm:smoke":"%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/llm-smoke.ts"
+    "llm:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/llm-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
@@ -31,6 +31,7 @@
     "linkedom": "0.18.13",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",
+    "puppeteer-core": "25.12.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-hook-form": "7.89.0",

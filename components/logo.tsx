@@ -30,9 +30,10 @@ export function LogoMark({ className, compact = false }: { className?: string; c
         </filter>
       </defs>
 
-      {!compact && <path d="M12 36A54 54 0 0 1 108 36" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />}
-      {!compact && <circle cx="60" cy="68" r="40" fill="#34d399" opacity="0.35" filter={`url(#${glow})`} />}
-      <circle cx="60" cy="68" r="44" fill="#162140" stroke={`url(#${ring})`} strokeWidth="2.5" />
+      {!compact && <path className="logo-arc" d="M12 36A54 54 0 0 1 108 36" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />}
+      {!compact && <circle className="logo-glow" cx="60" cy="68" r="40" fill="#34d399" opacity="0.35" filter={`url(#${glow})`} />}
+      <circle cx="60" cy="68" r="44" fill="#162140" />
+      <circle className="logo-ring" cx="60" cy="68" r="44" fill="none" stroke={`url(#${ring})`} strokeWidth="2.5" />
 
       <path d="M43 34H74L86 46V97H43Q38 97 38 92V39Q38 34 43 34Z" fill="#13203b" stroke={`url(#${gold})`} strokeWidth="2.2" strokeLinejoin="round" />
       <path d="M74 34V46H86Z" fill={`url(#${gold})`} />

@@ -31,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="flex min-h-full flex-col">
         <SmoothScroll />
-        <header className="border-b">
+        <header className="border-b print:hidden">
           <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
             <Link href="/" aria-label="LMAgent, accueil">
               <Logo className="text-lg" markClassName="size-9" />

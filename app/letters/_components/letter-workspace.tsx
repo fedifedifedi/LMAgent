@@ -4,9 +4,13 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { useEffect, useRef, useState } from "react";
-import { runLetterStepAction } from "@/app/letters/actions";
+import { revertLetterAction, runLetterStepAction, saveLetterEditsAction, setLetterTemplateAction } from "@/app/letters/actions";
 import { DeleteLetter } from "@/app/letters/_components/delete-letter";
-import { LetterSheet } from "@/components/letter/letter-sheet";
+import { LetterEditor } from "@/app/letters/_components/letter-editor";
+import { LetterDocument } from "@/components/letter/letter-document";
+import { SheetFit } from "@/components/letter/sheet-fit";
+import { editedCount, type LetterEdits } from "@/lib/letters/stored";
+import { LETTER_TEMPLATES, type LetterTemplate } from "@/lib/letters/templates";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -140,6 +144,65 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
     },
     { dependencies: [revealLetter, reduced], scope: sheetRef },
   );
+
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState<{ tone: "info" | "warning" | "error"; message: string } | null>(null);
+  const edited = view.letter ? editedCount(view.letter) : 0;
+
+  async function withView(run: () => Promise<{ view: LetterView } | { error: string }>, onDone?: () => void) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      const result = await run();
+      if ("error" in result) setActionError(result.error);
+      else {
+        setView(result.view);
+        onDone?.();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const chooseTemplate = (template: LetterTemplate) => void withView(() => setLetterTemplateAction(view.id, template));
+  const saveEdits = (edits: LetterEdits) => void withView(() => saveLetterEditsAction(view.id, edits), () => setEditing(false));
+  const revert = () => void withView(() => revertLetterAction(view.id));
+
+  async function exportPdf() {
+    setExporting(true);
+    setExportNotice(null);
+    try {
+      const response = await fetch(`/letters/${view.id}/pdf`);
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        setExportNotice({ tone: "error", message: body?.error ?? "L'export PDF a échoué." });
+        return;
+      }
+      const blob = await response.blob();
+      const name = decodeURIComponent(response.headers.get("x-letter-file-name") ?? "Lettre.pdf");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+
+      const pt = response.headers.get("x-letter-font-pt");
+      if (response.headers.get("x-letter-overflow") === "1") {
+        setExportNotice({ tone: "warning", message: `La lettre dépasse une page même avec le texte réduit à ${pt} pt : raccourcis-la (mode « Modifier le texte ») ou choisis la mise en page Compact.` });
+      } else if (pt && Number(pt) < LETTER_TEMPLATES[view.template].basePt) {
+        setExportNotice({ tone: "info", message: `PDF téléchargé : texte réduit à ${pt} pt pour tenir sur une page.` });
+      } else {
+        setExportNotice({ tone: "info", message: `PDF téléchargé : ${name}` });
+      }
+    } catch {
+      setExportNotice({ tone: "error", message: "L'export PDF a échoué : vérifie que l'application tourne toujours." });
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const { analysis, match } = view;
   const totals = view.usage.reduce((sum, u) => ({ input: sum.input + u.inputTokens, output: sum.output + u.outputTokens }), { input: 0, output: 0 });
@@ -291,21 +354,59 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
           </Alert>
         )}
 
+        {view.letter && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Mise en page">
+            <span className="text-sm text-muted-foreground">Mise en page :</span>
+            {(Object.keys(LETTER_TEMPLATES) as LetterTemplate[]).map((key) => (
+              <Toggle key={key} pressed={view.template === key} onChange={() => chooseTemplate(key)} disabled={busy || revealLetter}>
+                {LETTER_TEMPLATES[key].label}
+              </Toggle>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
-          <Toggle pressed={showSources} onChange={setShowSources} disabled={!view.letter || revealLetter}>
+          <Toggle pressed={showSources} onChange={setShowSources} disabled={!view.letter || revealLetter || editing}>
             Voir les sources
           </Toggle>
-          <Toggle pressed={highlight} onChange={setHighlight} disabled={!view.letter || revealLetter}>
+          <Toggle pressed={highlight} onChange={setHighlight} disabled={!view.letter || revealLetter || editing}>
             Surligner les compétences de l&apos;offre
           </Toggle>
-          <span className="text-xs text-muted-foreground">Affichage seulement : jamais dans le PDF.</span>
+          <Toggle pressed={editing} onChange={setEditing} disabled={!view.letter || revealLetter || busy || running !== null}>
+            Modifier le texte
+          </Toggle>
+          <span className="text-xs text-muted-foreground">Sources et surlignage : affichage seulement, jamais dans le PDF.</span>
         </div>
+
+        {view.letter && edited > 0 && !editing && (
+          <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {edited} phrase{edited > 1 ? "s" : ""} modifiée{edited > 1 ? "s" : ""} par toi (sans source, marquée{edited > 1 ? "s" : ""} ✎ dans les sources).
+            {view.canRevert && (
+              <button type="button" className="underline underline-offset-2" disabled={busy} onClick={revert}>
+                Revenir à la version générée
+              </button>
+            )}
+          </p>
+        )}
+
+        {editing && view.letter && (
+          <LetterEditor letter={view.letter} saving={busy} error={actionError} onCancel={() => setEditing(false)} onSave={saveEdits} />
+        )}
 
         <div className="max-h-[52rem] overflow-auto rounded-lg bg-muted p-3 sm:p-5" data-lenis-prevent>
           {view.letter ? (
-            <div ref={sheetRef}>
-              <LetterSheet letter={view.letter} header={view.header} sources={view.sources} showSources={showSources} highlightTerms={highlight ? view.highlightTerms : []} />
-            </div>
+            <SheetFit>
+              <div ref={sheetRef}>
+                <LetterDocument
+                  letter={view.letter}
+                  header={view.header}
+                  template={view.template}
+                  sources={view.sources}
+                  showSources={showSources}
+                  highlightTerms={highlight ? view.highlightTerms : []}
+                />
+              </div>
+            </SheetFit>
           ) : (
             <div className="mx-auto flex aspect-[210/297] w-full max-w-[210mm] items-center justify-center bg-sheet p-8 text-center font-letter text-sheet-foreground/60 shadow-sm">
               {running ? "La lettre s'écrit…" : "La lettre apparaîtra ici."}
@@ -326,11 +427,18 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
           </Alert>
         )}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" disabled>
-            Exporter en PDF
-          </Button>
-          <span className="text-sm text-muted-foreground">L&apos;export PDF arrive à la prochaine étape.</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" disabled={!view.letter || exporting || editing || running !== null} onClick={exportPdf}>
+              {exporting ? "Préparation du PDF…" : "Exporter en PDF"}
+            </Button>
+            {view.letter && <span className="text-sm text-muted-foreground">Une page A4, sans sources ni surlignage.</span>}
+          </div>
+          {exportNotice && (
+            <Alert variant={exportNotice.tone === "error" ? "destructive" : "default"} aria-live="polite">
+              <AlertDescription>{exportNotice.message}</AlertDescription>
+            </Alert>
+          )}
         </div>
       </div>
     </div>

@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { checkLetter } from "@/lib/agent/letter-checks";
+import { OfferAnalysisSchema, type ProfileMatch } from "@/lib/agent/schemas";
 import { db } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma/client";
+import { applyEdits, LetterEditsSchema, StoredLetterSchema } from "@/lib/letters/stored";
+import { isLetterTemplate } from "@/lib/letters/templates";
 import { runNextStep } from "@/lib/letters/pipeline";
 import { getLetterView, type LetterView } from "@/lib/letters/view";
 import { DAILY_QUOTA_LETTER_MESSAGE, LLMError, LLMRateLimitError, LLMValidationError } from "@/lib/llm";
@@ -69,7 +74,66 @@ export async function deleteLetterAction(letterId: unknown): Promise<{ error: st
   redirect(`/profiles/${letter.profileId}`);
 }
 
-export type StepActionResult ={ view: LetterView; error?: string; retryAfterSeconds?: number };
+type ViewResult = { view: LetterView } | { error: string };
+
+/** Choix du template de mise en page de la lettre. */
+export async function setLetterTemplateAction(letterId: unknown, template: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success || !isLetterTemplate(template)) return { error: "Template inconnu." };
+  await db.letter.update({ where: { id: id.data }, data: { template } });
+  const view = await getLetterView(id.data);
+  return view ? { view } : { error: "Lettre introuvable." };
+}
+
+/**
+ * Enregistre les retouches du texte. Une phrase modifiée perd sa source (« modifiée par toi ») ; la version produite
+ * par l'agent est conservée la première fois, pour pouvoir y revenir. Les vérifications (longueur...) sont refaites.
+ */
+export async function saveLetterEditsAction(letterId: unknown, edits: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  const parsedEdits = LetterEditsSchema.safeParse(edits);
+  if (!id.success) return { error: "Lettre introuvable." };
+  if (!parsedEdits.success) return { error: parsedEdits.error.issues[0]?.message ?? "Texte invalide." };
+
+  const letter = await db.letter.findUnique({ where: { id: id.data } });
+  if (!letter?.content || !letter.analysis || !letter.match) return { error: "La lettre n'est pas encore générée." };
+  const current = StoredLetterSchema.parse(letter.content);
+  let next;
+  try {
+    next = applyEdits(current, parsedEdits.data);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Texte invalide." };
+  }
+  const checks = checkLetter(next, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch });
+  await db.letter.update({
+    where: { id: id.data },
+    data: {
+      content: next as Prisma.InputJsonObject,
+      checks: checks as unknown as Prisma.InputJsonValue,
+      ...(!letter.generated && { generated: letter.content as Prisma.InputJsonObject }),
+    },
+  });
+  const view = await getLetterView(id.data);
+  return view ? { view } : { error: "Lettre introuvable." };
+}
+
+/** Annule toutes les retouches : la lettre redevient la version produite par l'agent. */
+export async function revertLetterAction(letterId: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
+  const letter = await db.letter.findUnique({ where: { id: id.data } });
+  if (!letter?.generated || !letter.analysis || !letter.match) return { error: "Aucune version générée à restaurer." };
+  const generated = StoredLetterSchema.parse(letter.generated);
+  const checks = checkLetter(generated, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch });
+  await db.letter.update({
+    where: { id: id.data },
+    data: { content: generated as Prisma.InputJsonObject, generated: Prisma.DbNull, checks: checks as unknown as Prisma.InputJsonValue },
+  });
+  const view = await getLetterView(id.data);
+  return view ? { view } : { error: "Lettre introuvable." };
+}
+
+export type StepActionResult = { view: LetterView; error?: string; retryAfterSeconds?: number };
 
 /** Exécute l'étape suivante du pipeline (appelée par la page, une étape à la fois) et renvoie l'état à jour. */
 export async function runLetterStepAction(letterId: unknown): Promise<StepActionResult | { error: string }> {

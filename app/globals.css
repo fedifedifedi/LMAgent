@@ -99,6 +99,23 @@
   color-scheme: dark;
 }
 
+/* Impression (page /letters/[id]/print lue par puppeteer) : A4 sans marge, fond blanc, rien d'autre que la feuille. */
+@page {
+  size: A4;
+  margin: 0;
+}
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+  }
+  /* En thème sombre, la feuille de l'aperçu est légèrement grisée : le PDF reste toujours blanc. */
+  .letter-sheet {
+    background: #ffffff !important;
+    color: #1c2a4a !important;
+  }
+}
+
 /* Apparition discrète des pages de travail (components/motion/reveal.tsx). */
 @keyframes lm-reveal {
   from {

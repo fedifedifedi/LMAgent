@@ -1,5 +1,7 @@
 import type { LetterIssue } from "@/lib/agent/letter-checks";
-import type { Critique, LetterContent, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
+import type { Critique, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
+import type { StoredLetter } from "@/lib/letters/stored";
+import { DEFAULT_TEMPLATE, isLetterTemplate, type LetterTemplate } from "@/lib/letters/templates";
 import { buildSourceCatalog } from "@/lib/agent/sources";
 import { db } from "@/lib/db";
 import type { LlmStep } from "@/lib/generated/prisma/enums";
@@ -30,7 +32,10 @@ export type LetterView = {
   critique: Critique | null;
   /** Première version écrite (avant la critique). */
   hasDraft: boolean;
-  letter: LetterContent | null;
+  letter: StoredLetter | null;
+  /** Une version générée existe et la lettre a été retouchée depuis : « Revenir à la version générée » possible. */
+  canRevert: boolean;
+  template: LetterTemplate;
   checks: LetterIssue[];
   header: LetterHeader;
   sources: Record<string, string>;
@@ -71,7 +76,9 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
     match,
     critique: (letter.critique as Critique | null) ?? null,
     hasDraft: Boolean(letter.draft),
-    letter: (letter.content as LetterContent | null) ?? null,
+    letter: (letter.content as StoredLetter | null) ?? null,
+    canRevert: Boolean(letter.generated),
+    template: isLetterTemplate(letter.template) ? letter.template : DEFAULT_TEMPLATE,
     checks: (letter.checks as LetterIssue[] | null) ?? [],
     header: {
       senderName: name,

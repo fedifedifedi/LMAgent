@@ -85,8 +85,12 @@ model Letter {
   draft     Json?
   /// Sortie de critique (avis du modèle).
   critique  Json?
-  /// Lettre finale (brouillon validé, ou réécriture).
+  /// Lettre finale (brouillon validé, ou réécriture), avec les retouches de l'utilisateur (phrases edited).
   content   Json?
+  /// Version produite par l'agent, avant retouches (pour « Revenir à la version générée »).
+  generated Json?
+  /// Template de mise en page (lib/letters/templates.ts) : classique, moderne ou compact.
+  template  String       @default("classique")
   /// Problèmes détectés par le code (longueur, compétences absentes revendiquées...) restant sur la lettre finale.
   checks    Json?
   status    LetterStatus @default(DRAFT)
