@@ -31,8 +31,18 @@ Next.js 16 (App Router), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/s
 - Schéma : lib/schemas/profile.ts. ProfileSchema = profil validé (enregistré) ; ProfileDraftSchema = sortie tolérante de l'extraction, complétée dans le formulaire.
 
 ## LLM (lib/llm/)
-Interface LLMProvider (generateObject avec schéma Zod, embed) : implémentations mock (par défaut), anthropic, gemini,
-choisie via LLM_PROVIDER dans .env.local. Le mock doit permettre de tout faire tourner sans clé API.
+- Point d'entrée : generateObject({ output, system, prompt }) de lib/llm (server-only). Provider via LLM_PROVIDER
+  (mock par défaut | anthropic | gemini), modèle via LLM_MODEL (obligatoire hors mock, JAMAIS de nom de modèle en dur).
+  Variables : voir .env.example. embed() viendra à l'étape 7.
+- Les providers ne font que traduire ; validation Zod, relances (MAX_ATTEMPTS = 3 appels) et cumul des tokens
+  sont dans lib/llm/generate.ts. Chaque appel renvoie usage (table LlmCall prévue à l'étape 8).
+- Sorties déclarées dans lib/schemas/llm-outputs.ts : `schema` = schéma cible STRICT envoyé au modèle (sans .catch(),
+  .default() ni .transform(), qui rendraient le JSON Schema permissif) ; `lenientSchema` = schéma tolérant appliqué ensuite.
+  Chaque sortie a une fixture mock lib/llm/fixtures/<name>.json (objet, ou liste servie par tentative).
+- Anthropic : output_config.format (JSON Schema), PAS de tool_choice forcé (400 sur Opus 5.5 / Sonnet 5.5 / Fable 5.1),
+  pas de temperature. Schéma adapté par sanitizeForAnthropic, pas par jsonSchemaOutputFormat du SDK (il perd les enums).
+- Gemini : @google/genai, responseJsonSchema filtré par sanitizeForGemini (pas de pattern : décrire les formats avec .describe()).
+  Les 429 ne sont pas retentés par le SDK : LLMRateLimitError avec message clair et délai (retryDelay).
 
 ## RAG
 - Documents rattachés à un profil : descriptions de projets/README, rapports de stage, lettres de recommandation (sources de faits),

@@ -1,8 +1,15 @@
 import { z } from "zod";
 
-const yearMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format attendu : YYYY-MM");
+// Les .describe() sont repris dans le JSON Schema envoyé au LLM (Gemini ne gère pas "pattern").
+const yearMonth = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format attendu : YYYY-MM")
+  .describe("Year and month, format YYYY-MM");
 
-const id = z.string().regex(/^[a-z0-9-]+$/, "Format attendu : kebab-case");
+const id = z
+  .string()
+  .regex(/^[a-z0-9-]+$/, "Format attendu : kebab-case")
+  .describe("Unique kebab-case identifier, e.g. exp-acme-2023");
 
 /** Comparaison des compétences insensible à la casse et aux espaces ("Node JS" == "nodejs"). */
 export const normalizeSkill = (skill: string) => skill.toLowerCase().replace(/\s+/g, "");
@@ -65,21 +72,25 @@ export const AvailabilitySchema = z.object({
   acceptsRemote: z.boolean(),
 });
 
+export const IdentitySchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  headline: z.string().min(1).describe("Short professional title, e.g. Full-stack TypeScript developer"),
+});
+
+export const ContactSchema = z.object({
+  email: z.email(),
+  phone: z.string().optional(),
+  city: z.string().optional(),
+  linkedin: z.url().optional(),
+  github: z.url().optional(),
+  website: z.url().optional(),
+});
+
 export const ProfileSchema = z
   .object({
-    identity: z.object({
-      firstName: z.string().min(1),
-      lastName: z.string().min(1),
-      headline: z.string().min(1),
-    }),
-    contact: z.object({
-      email: z.email(),
-      phone: z.string().optional(),
-      city: z.string().optional(),
-      linkedin: z.url().optional(),
-      github: z.url().optional(),
-      website: z.url().optional(),
-    }),
+    identity: IdentitySchema,
+    contact: ContactSchema,
     summary: z.string().min(1),
     availability: AvailabilitySchema,
     experiences: z.array(ExperienceSchema),
@@ -118,6 +129,34 @@ export const ProfileSchema = z
       });
     }
   });
+
+/**
+ * Schéma cible de l'extraction d'un CV, envoyé au LLM (JSON Schema) pour le guider : mêmes types, enums
+ * et formats que ProfileSchema, mais tout ce qu'un CV peut ne pas contenir est facultatif, pour que le
+ * modèle n'ait jamais à inventer (ex. disponibilités). Sans .catch() ni .default() : ils rendraient le
+ * JSON Schema permissif. La réponse validée est ensuite passée à ProfileDraftSchema.
+ */
+export const ProfileTargetSchema = z.object({
+  identity: IdentitySchema.partial(),
+  contact: ContactSchema.partial(),
+  summary: z.string().min(1).optional(),
+  availability: AvailabilitySchema.partial()
+    .extend({
+      mobility: z
+        .object({ countries: z.array(z.string().min(1)), cities: z.array(z.string().min(1)) })
+        .partial()
+        .optional(),
+    })
+    .optional(),
+  experiences: z.array(ExperienceSchema.partial().required({ title: true, company: true })),
+  projects: z.array(ProjectSchema.partial().required({ name: true })),
+  education: z.array(
+    EducationSchema.partial().required({ degree: true, school: true }).extend({ details: z.array(z.string()).optional() }),
+  ),
+  skills: z.array(SkillGroupSchema),
+  languages: z.array(LanguageSchema.partial().required({ name: true })),
+  interests: z.array(z.string()).optional(),
+});
 
 /**
  * Brouillon issu de l'extraction LLM d'un CV : tout est facultatif et les valeurs mal formées

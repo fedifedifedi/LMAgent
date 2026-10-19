@@ -1,0 +1,56 @@
+{
+  "identity": {
+    "firstName": "Camille",
+    "lastName": "Martin",
+    "headline": "Développeuse full-stack TypeScript"
+  },
+  "contact": {
+    "email": "camille.martin@example.com",
+    "city": "Lyon",
+    "github": "https://github.com/camille-martin-example"
+  },
+  "summary": "Étudiante en dernière année d'école d'ingénieurs, spécialisée en développement web et en systèmes d'IA appliquée.",
+  "experiences": [
+    {
+      "id": "exp-acme-2025",
+      "title": "Développeuse web (stage)",
+      "company": "Acme Logiciels",
+      "location": "Lyon",
+      "type": "internship",
+      "start": "2025-06",
+      "end": "2025-09",
+      "achievements": [
+        "Refonte du tableau de bord client en React, temps de chargement divisé par deux",
+        "Mise en place de tests end-to-end sur le parcours de commande"
+      ],
+      "skills": ["React", "TypeScript", "Playwright"]
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj-rag-cours",
+      "name": "Assistant de révision RAG",
+      "summary": "Chatbot qui répond aux questions des étudiants à partir de leurs supports de cours.",
+      "achievements": ["Recherche hybride BM25 et embeddings sur 2 000 pages de cours"],
+      "skills": ["Python", "RAG"]
+    }
+  ],
+  "education": [
+    {
+      "id": "edu-insa",
+      "degree": "Diplôme d'ingénieur en informatique",
+      "school": "INSA Lyon",
+      "start": "2022-09",
+      "end": null
+    }
+  ],
+  "skills": [
+    { "category": "Langages", "items": ["TypeScript", "Python"] },
+    { "category": "Web", "items": ["React", "Node.js", "Playwright"] },
+    { "category": "IA", "items": ["RAG"] }
+  ],
+  "languages": [
+    { "name": "Français", "level": "native" },
+    { "name": "Anglais", "level": "C1" }
+  ]
+}

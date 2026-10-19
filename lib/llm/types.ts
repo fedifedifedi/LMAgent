@@ -1,0 +1,52 @@
+import type { z } from "zod";
+
+export type ProviderName = "mock" | "anthropic" | "gemini";
+
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  /** Tokens d'entrée servis depuis le cache (sous-ensemble de inputTokens). */
+  cacheReadTokens?: number;
+  /** true pour le mock : estimation (~4 caractères par token), pas un comptage réel. */
+  estimated?: boolean;
+};
+
+/** Consommation d'un appel generateObject, cumulée sur toutes ses tentatives. */
+export type LLMUsage = TokenUsage & {
+  provider: ProviderName;
+  model: string;
+  attempts: number;
+  durationMs: number;
+};
+
+/** Historique neutre ; `native` porte la réponse brute du provider pour la lui renvoyer telle quelle. */
+export type ConversationTurn = { role: "user"; text: string } | { role: "assistant"; text: string; native?: unknown };
+
+export type CompletionRequest = {
+  /** Nom de la sortie (clé des fixtures mock). */
+  name: string;
+  jsonSchema: Record<string, unknown>;
+  system: string;
+  turns: ConversationTurn[];
+  maxOutputTokens: number;
+};
+
+export type Completion = {
+  /** Texte JSON brut produit par le modèle. */
+  text: string;
+  usage: TokenUsage;
+  native?: unknown;
+};
+
+/** Un provider ne fait que traduire une requête vers son API : validation et relances sont dans generateObject. */
+export interface LLMProvider {
+  readonly name: ProviderName;
+  readonly model: string;
+  complete(request: CompletionRequest): Promise<Completion>;
+}
+
+export type LLMOutput<T extends z.ZodObject = z.ZodObject, L extends z.ZodType = z.ZodType> = {
+  name: string;
+  schema: T;
+  lenientSchema?: L;
+};
