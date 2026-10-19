@@ -58,6 +58,13 @@ function collectErrors(errors: FieldErrors, prefix = ""): Issue[] {
 
 const DATE_HINT = "AAAA ou AAAA-MM, à la précision de ton CV";
 
+/** Amène l'utilisateur au champ (ou à la section) `path` et y place le focus. */
+function goToField(path: string, instant: boolean) {
+  const element = document.querySelector<HTMLElement>(`[data-field="${CSS.escape(path)}"]`) ?? document.getElementById(fieldId(path));
+  element?.scrollIntoView({ behavior: instant ? "auto" : "smooth", block: "center" });
+  element?.querySelector<HTMLElement>("input, textarea, select, button")?.focus({ preventScroll: true });
+}
+
 export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileFormValues; target: ProfileFormTarget }) {
   const form = useForm<ProfileFormValues, unknown, Profile>({ resolver, defaultValues, mode: "onTouched" });
   const [pending, startTransition] = useTransition();
@@ -71,11 +78,16 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
   const warnings = useMemo(() => profileWarnings(values), [values]);
   const errors = collectErrors(form.formState.errors);
 
-  function goTo(path: string) {
-    const element = document.querySelector<HTMLElement>(`[data-field="${path}"]`) ?? document.getElementById(fieldId(path));
-    element?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
-    element?.querySelector<HTMLElement>("input, textarea, select, button")?.focus({ preventScroll: true });
-  }
+  const goTo = (path: string) => goToField(path, reduced);
+
+  // Arrivée depuis « ce qui manque » sur la fiche du profil : /profiles/[id]/edit#<champ>.
+  const openedHash = useRef(false);
+  useEffect(() => {
+    if (openedHash.current) return;
+    openedHash.current = true;
+    const field = decodeURIComponent(window.location.hash.slice(1));
+    if (field) requestAnimationFrame(() => goToField(field, true));
+  }, []);
 
   function onSave() {
     setServerError(null);
@@ -265,9 +277,22 @@ function useLocalDraft(key: string, form: ReturnType<typeof useForm<ProfileFormV
 // ---------------------------------------------------------------------------------------------------------------
 // Sections
 
-function Section({ title, description, children, action }: { title: string; description?: string; children: ReactNode; action?: ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+  action,
+  field,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  action?: ReactNode;
+  /** Ancre de la section (liens « ce qui manque »). */
+  field?: string;
+}) {
   return (
-    <Card>
+    <Card data-field={field}>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <CardTitle className="font-heading text-2xl font-normal">{title}</CardTitle>
@@ -427,7 +452,7 @@ function AvailabilitySection() {
   const contractError = useFieldError("availability.contractTypes");
   const durationError = useFieldError("availability.durationMonths");
   return (
-    <Section title="Disponibilité" description="Seul le type de contrat est obligatoire ; le reste rend la lettre plus concrète.">
+    <Section field="availability" title="Disponibilité" description="Seul le type de contrat est obligatoire ; le reste rend la lettre plus concrète.">
       <Field name="availability.contractTypes" label="Type de contrat recherché" error={contractError}>
         <Controller
           control={control}
@@ -493,6 +518,7 @@ function ExperiencesSection() {
   return (
     <Section
       title="Expériences"
+      field="experiences"
       description="Stages, alternances, emplois et missions."
       action={
         <Button
@@ -569,6 +595,7 @@ function ProjectsSection() {
   return (
     <Section
       title="Projets"
+      field="projects"
       description="Projets personnels, académiques ou open source. Un stage ou un emploi va dans Expériences."
       action={
         <Button
@@ -639,6 +666,7 @@ function EducationSection() {
   return (
     <Section
       title="Formation"
+      field="education"
       action={
         <Button
           type="button"
@@ -680,6 +708,7 @@ function SkillsSection({ addedSkills }: { addedSkills: string[] }) {
   return (
     <Section
       title="Compétences"
+      field="skills"
       description="La liste complète, par catégorie. Les compétences d'une expérience doivent y figurer : elles y sont ajoutées automatiquement à l'enregistrement."
       action={
         <Button type="button" variant="outline" size="sm" onClick={() => append({ category: "", items: [] })}>
@@ -712,6 +741,7 @@ function LanguagesSection() {
   return (
     <Section
       title="Langues et centres d'intérêt"
+      field="languages"
       action={
         <Button type="button" variant="outline" size="sm" onClick={() => append({ name: "", level: undefined as never })}>
           Ajouter une langue

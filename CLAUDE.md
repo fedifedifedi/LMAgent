@@ -12,14 +12,10 @@ Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5
 lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de lecture native pour les PDF texte (jugée inutile).
 
 · 6. Formulaire du profil (vérification, avertissements, fusion projet → expérience, enregistrement lié à l'import, liste,
-fiche, édition, suppression) et socle du design (jetons clair / sombre, polices, Lenis, apparitions CSS).
+fiche, édition, suppression) et socle du design (jetons clair / sombre, polices, Lenis, apparitions CSS)
+· 6b. Logo, accueil simple (3 étapes, « Commencer »), fiche du profil (complétude, parcours, compétences et leur usage).
 
 À faire, dans cet ordre (proposer le plan détaillé avant chaque étape) :
-- **6b. Finition** : logo choisi parmi les pistes (https://claude.ai/artifact/RTGLyGi2r98S1oFfDdWdYW), intégré dans l'en-tête,
-  le favicon (app/icon.svg) et plus tard le PDF. Accueil simple (logo, accroche, 3 étapes : importer son CV, coller une offre,
-  obtenir sa lettre ; bouton « Commencer ») ; version animée après l'étape 7. Fiche du profil : score de complétude avec ce
-  qui manque, frise chronologique du parcours, compétences groupées par catégorie, bouton « Générer une lettre avec ce
-  profil » désactivé jusqu'à l'étape 7.
 - **7. Génération de lettres (pipeline + UI)** : choisir un profil validé, coller le texte de l'offre ou son lien.
   Lien : texte de la page récupéré côté serveur ; en cas d'échec (LinkedIn, Indeed et d'autres bloquent souvent), message clair
   demandant de coller le texte. Montrer à l'utilisateur ce qui a été extrait de l'offre (poste, entreprise, compétences demandées)
@@ -32,6 +28,10 @@ fiche, édition, suppression) et socle du design (jetons clair / sombre, polices
 - Plus tard : authentification.
 
 ## Design et animations
+- Logo : celui fourni par l'utilisateur (original : public/brand/lmagent-logo-original.jpg), redessiné en SVG dans
+  components/logo.tsx (LogoMark, Logo en ligne, LogoStacked comme l'original) ; favicon app/icon.svg (version compacte).
+  Ne pas le remplacer par une autre piste : l'utilisateur veut CE logo. Dégradés SVG en userSpaceOnUse (un trait
+  horizontal en objectBoundingBox ne s'affiche pas).
 - Direction retenue : « Encre & papier » (référence : https://claude.ai/artifact/LdnhjcHWPiRgaNZYgzLwY8).
   Typographies : Instrument Serif (titres seulement), Public Sans (interface), Newsreader (lettre, aperçu et PDF).
   Jetons clair / sombre : fond #F5F6F9 / #10162A, surface #FFFFFF / #172036, encre #1C2A4A / #E7EAF3,

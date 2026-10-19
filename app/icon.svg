@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 22 92 92" width="64" height="64">
+  <!-- Favicon : version compacte du logo LMAgent (sans l'arc ni la lueur), mêmes tracés que components/logo.tsx. -->
+  <defs>
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="38" y1="34" x2="86" y2="97">
+      <stop offset="0" stop-color="#f6d98a"/>
+      <stop offset="1" stop-color="#c8963a"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3ee0a0"/>
+      <stop offset="1" stop-color="#7b5cff"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="68" r="44" fill="#162140" stroke="url(#ring)" stroke-width="3"/>
+  <path d="M43 34H74L86 46V97H43Q38 97 38 92V39Q38 34 43 34Z" fill="#13203b" stroke="url(#gold)" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M74 34V46H86Z" fill="url(#gold)"/>
+  <path d="M61 51L52 68H59L55 83L67 63H60Z" fill="url(#gold)"/>
+  <rect x="68" y="58" width="5" height="16" rx="1" fill="#34d399"/>
+  <g stroke="url(#gold)" stroke-width="3.5" stroke-linecap="round">
+    <path d="M47 89.5H80"/>
+  </g>
+</svg>

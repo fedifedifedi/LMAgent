@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Newsreader, Public_Sans } from "next/font/google";
 import Link from "next/link";
+import { Logo } from "@/components/logo";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
 import { ThemeToggle } from "@/components/theme";
 import { themeScript } from "@/lib/theme-script";
@@ -30,8 +31,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SmoothScroll />
         <header className="border-b">
           <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <Link href="/" className="font-heading text-2xl">
-              LMAgent
+            <Link href="/" aria-label="LMAgent, accueil">
+              <Logo className="text-lg" markClassName="size-9" />
             </Link>
             <nav className="flex flex-wrap items-center gap-4 text-sm">
               <Link href="/profiles" className="font-medium hover:underline">
