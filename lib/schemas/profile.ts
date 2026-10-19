@@ -1,0 +1,201 @@
+import { z } from "zod";
+
+const yearMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Format attendu : YYYY-MM");
+
+const id = z.string().regex(/^[a-z0-9-]+$/, "Format attendu : kebab-case");
+
+/** Comparaison des compétences insensible à la casse et aux espaces ("Node JS" == "nodejs"). */
+export const normalizeSkill = (skill: string) => skill.toLowerCase().replace(/\s+/g, "");
+
+export const ExperienceSchema = z.object({
+  id,
+  title: z.string().min(1),
+  company: z.string().min(1),
+  location: z.string().optional(),
+  type: z.enum(["cdi", "cdd", "freelance", "internship", "apprenticeship", "part-time", "other"]),
+  start: yearMonth,
+  end: yearMonth.nullable(), // null = poste actuel
+  summary: z.string().optional(),
+  achievements: z.array(z.string().min(1)).min(1),
+  skills: z.array(z.string().min(1)),
+});
+
+export const ProjectSchema = z.object({
+  id,
+  name: z.string().min(1),
+  role: z.string().optional(),
+  url: z.url().optional(),
+  start: yearMonth.optional(),
+  end: yearMonth.nullable().optional(),
+  summary: z.string().min(1),
+  achievements: z.array(z.string().min(1)).min(1),
+  skills: z.array(z.string().min(1)),
+});
+
+export const EducationSchema = z.object({
+  id,
+  degree: z.string().min(1),
+  school: z.string().min(1),
+  location: z.string().optional(),
+  start: yearMonth.optional(),
+  end: yearMonth.nullable(),
+  details: z.array(z.string()).default([]),
+});
+
+export const SkillGroupSchema = z.object({
+  category: z.string().min(1),
+  items: z.array(z.string().min(1)).min(1),
+});
+
+export const LanguageSchema = z.object({
+  name: z.string().min(1),
+  level: z.enum(["native", "C2", "C1", "B2", "B1", "A2", "A1"]),
+});
+
+export const AvailabilitySchema = z.object({
+  contractTypes: z
+    .array(z.enum(["pfe-internship", "internship", "cdi", "cdd", "freelance", "apprenticeship", "part-time"]))
+    .min(1),
+  durationMonths: z.number().int().positive().optional(), // ex. 6 pour un stage PFE
+  startDate: z.union([z.iso.date(), yearMonth]), // YYYY-MM-DD ou YYYY-MM
+  mobility: z.object({
+    countries: z.array(z.string().min(1)).default([]),
+    cities: z.array(z.string().min(1)).default([]),
+  }),
+  acceptsRemote: z.boolean(),
+});
+
+export const ProfileSchema = z
+  .object({
+    identity: z.object({
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      headline: z.string().min(1),
+    }),
+    contact: z.object({
+      email: z.email(),
+      phone: z.string().optional(),
+      city: z.string().optional(),
+      linkedin: z.url().optional(),
+      github: z.url().optional(),
+      website: z.url().optional(),
+    }),
+    summary: z.string().min(1),
+    availability: AvailabilitySchema,
+    experiences: z.array(ExperienceSchema),
+    projects: z.array(ProjectSchema).default([]),
+    education: z.array(EducationSchema),
+    skills: z.array(SkillGroupSchema),
+    languages: z.array(LanguageSchema),
+    interests: z.array(z.string()).default([]),
+  })
+  .superRefine((profile, ctx) => {
+    // Les ids sont référencés par matchProfile : ils doivent être uniques.
+    const seen = new Set<string>();
+    const sections = ["experiences", "projects", "education"] as const;
+    for (const section of sections) {
+      profile[section].forEach((item, index) => {
+        if (seen.has(item.id)) {
+          ctx.addIssue({ code: "custom", path: [section, index, "id"], message: `id dupliqué : "${item.id}"` });
+        }
+        seen.add(item.id);
+      });
+    }
+
+    // Toute compétence citée dans une expérience ou un projet doit figurer dans la liste globale.
+    const known = new Set(profile.skills.flatMap((group) => group.items.map(normalizeSkill)));
+    for (const section of ["experiences", "projects"] as const) {
+      profile[section].forEach((item, index) => {
+        item.skills.forEach((skill, skillIndex) => {
+          if (!known.has(normalizeSkill(skill))) {
+            ctx.addIssue({
+              code: "custom",
+              path: [section, index, "skills", skillIndex],
+              message: `Compétence "${skill}" absente de la liste globale skills`,
+            });
+          }
+        });
+      });
+    }
+  });
+
+/**
+ * Brouillon issu de l'extraction LLM d'un CV : tout est facultatif et les valeurs mal formées
+ * (dates, enums, URLs) sont tolérées, pour que l'utilisateur les corrige dans le formulaire
+ * avant validation par ProfileSchema.
+ */
+type ContractType = z.infer<typeof AvailabilitySchema>["contractTypes"][number];
+
+const looseString =z.string().optional().catch(undefined);
+const looseList = z.array(z.string()).default([]).catch([]);
+
+const lenientItem = {
+  id: looseString,
+  location: looseString,
+  start: looseString,
+  end: z.string().nullable().optional().catch(undefined),
+};
+
+export const ProfileDraftSchema = z.object({
+  identity: z
+    .object({ firstName: looseString, lastName: looseString, headline: looseString })
+    .default({}),
+  contact: z
+    .object({
+      email: looseString,
+      phone: looseString,
+      city: looseString,
+      linkedin: looseString,
+      github: looseString,
+      website: looseString,
+    })
+    .default({}),
+  summary: looseString,
+  availability: z
+    .object({
+      contractTypes: z
+        .array(z.string())
+        .default([])
+        .catch([])
+        .transform((types) =>
+          types.filter((t): t is ContractType => AvailabilitySchema.shape.contractTypes.element.safeParse(t).success),
+        ),
+      durationMonths: z.number().optional().catch(undefined),
+      startDate: looseString,
+      mobility: z.object({ countries: looseList, cities: looseList }).default({ countries: [], cities: [] }),
+      acceptsRemote: z.boolean().optional().catch(undefined),
+    })
+    .default({ contractTypes: [], mobility: { countries: [], cities: [] } }),
+  experiences: z
+    .array(
+      ExperienceSchema.partial().extend({
+        ...lenientItem,
+        type: ExperienceSchema.shape.type.optional().catch(undefined),
+        achievements: looseList,
+        skills: looseList,
+      }),
+    )
+    .default([]),
+  projects: z
+    .array(
+      ProjectSchema.partial().extend({
+        ...lenientItem,
+        url: looseString,
+        achievements: looseList,
+        skills: looseList,
+      }),
+    )
+    .default([]),
+  education: z.array(EducationSchema.partial().extend({ ...lenientItem, details: looseList })).default([]),
+  skills: z.array(z.object({ category: z.string().default(""), items: looseList })).default([]),
+  languages: z
+    .array(z.object({ name: z.string(), level: LanguageSchema.shape.level.optional().catch(undefined) }))
+    .default([]),
+  interests: looseList,
+});
+
+export type Profile = z.infer<typeof ProfileSchema>;
+export type ProfileDraft = z.infer<typeof ProfileDraftSchema>;
+export type Experience = z.infer<typeof ExperienceSchema>;
+export type Project = z.infer<typeof ProjectSchema>;
+export type Availability = z.infer<typeof AvailabilitySchema>;
