@@ -58,6 +58,16 @@ lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall
 - Respecter prefers-reduced-motion (animations coupées ou réduites, Lenis désactivé).
 - Pas de composants React Bits en WebGL (three.js, ogl) : seulement texte, cartes, boutons, fonds légers en CSS/SVG.
 - Pas de `motion` (ex-Framer Motion) : seulement des composants React Bits en GSAP ou en CSS.
+- Design final (inspiré de 21st.dev, référence https://claude.ai/artifact/4MK6T7bBc3vs7DfDqGrbZ7) : AUCUN code copié
+  depuis 21st.dev, tout est réécrit en CSS / GSAP, sans `motion`. À conserver tel quel :
+  en-tête collant flouté avec lien actif (components/nav-links.tsx, sous <Suspense> dans app/layout.tsx : usePathname
+  bloque le prerender sinon) ; Stepper (components/stepper.tsx) sur /profiles/new et /profiles/import/[id] ;
+  SpotlightCard (components/spotlight-card.tsx) sur les étapes de l'accueil ; accueil en deux colonnes avec pile de lettres ;
+  import du CV en glisser-déposer avec .scan-line pendant l'analyse ; sommaire latéral collant (ProfileToc, scrollspy)
+  et barre d'enregistrement collante dans le formulaire du profil ; anneau de complétude (conic-gradient) sur la fiche ;
+  page de la lettre : étapes de l'agent en barre horizontale, barre d'outils unique (mise en page en contrôle segmenté +
+  Sources / Surligner / Modifier le texte), barre d'export collante en bas (mots, sources, tokens, « Exporter en PDF »).
+  Utilitaires CSS dans globals.css : .btn-shine (bouton principal), .spotlight, .scan-line, coupés en reduced motion.
 - Design intégré au fil des étapes : socle (Lenis, reduced motion) et animations discrètes à l'étape 6, étapes de l'agent et
   apparition de la lettre à l'étape 7, animations marquées de l'accueil et templates de lettre à l'étape 8.
 
