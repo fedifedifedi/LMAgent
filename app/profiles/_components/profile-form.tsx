@@ -171,7 +171,9 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
           </details>
         )}
 
-        <Reveal className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <ProfileToc issues={[...errors.map((e) => e.path), ...warnings.map((w) => w.field)]} onSelect={goTo} />
+        <Reveal className="flex min-w-0 flex-col gap-6">
           <IdentitySection profileId={"profileId" in target ? target.profileId : undefined} />
           <AvailabilitySection />
           <ExperiencesSection />
@@ -184,9 +186,10 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
           />
           <LanguagesSection />
         </Reveal>
+        </div>
 
-        <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur">
-          <Button type="submit" disabled={pending}>
+        <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-card/90 px-4 py-3 shadow-lg backdrop-blur">
+          <Button type="submit" disabled={pending} className="btn-shine">
             {pending ? "Enregistrement…" : "Enregistrer le profil"}
           </Button>
           <span className="text-sm text-muted-foreground">
@@ -195,6 +198,57 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
         </div>
       </form>
     </FormProvider>
+  );
+}
+
+const TOC: Array<{ field: string; label: string; prefixes: string[] }> = [
+  { field: "identity", label: "Identité et contact", prefixes: ["identity", "contact", "summary"] },
+  { field: "availability", label: "Disponibilité", prefixes: ["availability"] },
+  { field: "experiences", label: "Expériences", prefixes: ["experiences"] },
+  { field: "projects", label: "Projets", prefixes: ["projects"] },
+  { field: "education", label: "Formation", prefixes: ["education"] },
+  { field: "skills", label: "Compétences", prefixes: ["skills"] },
+  { field: "languages", label: "Langues", prefixes: ["languages", "interests"] },
+];
+
+/** Sommaire collant (scrollspy) : section visible mise en évidence, nombre de points à reprendre par section. */
+function ProfileToc({ issues, onSelect }: { issues: string[]; onSelect: (path: string) => void }) {
+  const [active, setActive] = useState(TOC[0].field);
+
+  useEffect(() => {
+    const sections = TOC.map((item) => document.querySelector<HTMLElement>(`[data-field="${item.field}"]`)).filter((el): el is HTMLElement => el !== null);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) setActive(visible.target.getAttribute("data-field") ?? TOC[0].field);
+      },
+      { rootMargin: "-20% 0px -60% 0px" },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <nav aria-label="Sections du profil" className="sticky top-20 hidden self-start lg:block">
+      <ul className="flex flex-col gap-0.5 text-sm">
+        {TOC.map((item) => {
+          const count = issues.filter((path) => item.prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}.`))).length;
+          return (
+            <li key={item.field}>
+              <button
+                type="button"
+                onClick={() => onSelect(item.field)}
+                aria-current={active === item.field ? "location" : undefined}
+                className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-accent ${active === item.field ? "bg-accent font-semibold" : ""}`}
+              >
+                {item.label}
+                {count > 0 && <span className="text-xs font-semibold text-warning tabular-nums">{count}</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
@@ -455,7 +509,7 @@ function IdentitySection({ profileId }: { profileId?: string }) {
     });
   }
   return (
-    <Section title="Identité et contact" description="Ce qui apparaîtra en tête de chaque lettre.">
+    <Section field="identity" title="Identité et contact" description="Ce qui apparaîtra en tête de chaque lettre.">
       <div className={grid}>
         <TextField name="identity.firstName" label="Prénom" />
         <TextField name="identity.lastName" label="Nom" />

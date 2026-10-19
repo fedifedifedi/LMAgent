@@ -3,6 +3,7 @@ import { io } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ProfileForm } from "@/app/profiles/_components/profile-form";
+import { Stepper } from "@/components/stepper";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { profileWarnings } from "@/lib/profile/warnings";
 import { draftToFormValues } from "@/lib/profile/form-values";
@@ -13,6 +14,7 @@ export const metadata: Metadata = { title: "Vérifier le profil · LMAgent" };
 export default function CvImportPage({ params }: PageProps<"/profiles/import/[id]">) {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10">
+      <Stepper steps={["Importer", "Vérifier", "Enregistrer"]} current={1} />
       <header className="flex flex-col gap-2">
         <h1 className="font-heading text-4xl">Vérifie ton profil</h1>
         <p className="max-w-[65ch] text-muted-foreground">

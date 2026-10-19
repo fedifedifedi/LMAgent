@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Newsreader, Public_Sans } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Logo } from "@/components/logo";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { NavLinks } from "@/components/nav-links";
 import { ThemeToggle } from "@/components/theme";
 import { themeScript } from "@/lib/theme-script";
 import "./globals.css";
@@ -31,22 +33,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="flex min-h-full flex-col">
         <SmoothScroll />
-        <header className="border-b print:hidden">
-          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur print:hidden">
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-2.5">
             <Link href="/" aria-label="LMAgent, accueil">
               <Logo className="text-lg" markClassName="size-9" />
             </Link>
-            <nav className="flex flex-wrap items-center gap-4 text-sm">
-              <Link href="/profiles" className="font-medium hover:underline">
-                Profils
-              </Link>
-              <Link href="/profiles/new" className="font-medium hover:underline">
-                Importer un CV
-              </Link>
-              <Link href="/letters/new" className="font-medium hover:underline">
-                Nouvelle lettre
-              </Link>
-              <ThemeToggle />
+            <nav className="flex flex-wrap items-center gap-1 text-sm">
+              <Suspense>
+                <NavLinks />
+              </Suspense>
+              <span className="ml-2">
+                <ThemeToggle />
+              </span>
             </nav>
           </div>
         </header>

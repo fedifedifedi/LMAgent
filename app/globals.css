@@ -131,6 +131,51 @@
 .reveal > :nth-child(4) { animation-delay: 180ms; }
 .reveal > :nth-child(5) { animation-delay: 240ms; }
 .reveal > :nth-child(n + 6) { animation-delay: 300ms; }
+/* Bouton à reflet (type « shimmer button » de 21st.dev, en CSS) : réservé aux actions principales. */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: lm-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes lm-shine {
+  55%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+/* Carte à halo qui suit le curseur (type « spotlight card », CSS + variables posées par SpotlightCard). */
+.spotlight {
+  background:
+    radial-gradient(260px circle at var(--spot-x, 70%) var(--spot-y, 20%), color-mix(in oklab, var(--ring) 12%, transparent), transparent 70%),
+    var(--card);
+}
+
+/* Balayage de l'aperçu pendant l'analyse du CV. */
+@keyframes lm-scan {
+  from {
+    transform: translateY(-60%);
+  }
+  to {
+    transform: translateY(60%);
+  }
+}
+.scan-line {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0 46%, color-mix(in oklab, var(--ring) 22%, transparent) 50%, transparent 54%);
+  animation: lm-scan 2.4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
 /* Coche qui se trace (confirmation d'enregistrement). */
 @keyframes lm-draw {
   from {
@@ -142,7 +187,9 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .reveal > *,
-  .draw-tick path {
+  .draw-tick path,
+  .btn-shine::after,
+  .scan-line {
     animation: none;
   }
 }

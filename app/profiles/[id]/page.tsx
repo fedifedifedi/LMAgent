@@ -67,7 +67,7 @@ async function ProfileView({ params, searchParams }: Pick<PageProps<"/profiles/[
 
       <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          <Link href={`/letters/new?profile=${id}`} className={buttonVariants()}>
+          <Link href={`/letters/new?profile=${id}`} className={`${buttonVariants()} btn-shine`}>
             Générer une lettre avec ce profil
           </Link>
           <span className="text-sm text-muted-foreground">Colle une offre : la lettre ne citera que ce profil.</span>
@@ -118,12 +118,20 @@ function Completeness({ profile, id }: { profile: Profile; id: string }) {
   const { score, missing } = profileCompleteness(profile);
   return (
     <Block title="Complétude" description="Plus le profil est complet, plus la lettre peut être précise.">
-      <div className="flex items-baseline gap-3">
-        <span className="font-heading text-5xl tabular-nums">{score} %</span>
+      {/* Anneau de complétude (type « progress ring »), en CSS. */}
+      <div className="flex items-center gap-4">
+        <div
+          role="progressbar"
+          aria-valuenow={score}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Complétude du profil"
+          className="grid size-24 shrink-0 place-items-center rounded-full"
+          style={{ background: `conic-gradient(var(--primary) ${score * 3.6}deg, var(--muted) 0)` }}
+        >
+          <span className="grid size-[4.75rem] place-items-center rounded-full bg-card font-heading text-2xl tabular-nums">{score} %</span>
+        </div>
         <span className="text-muted-foreground">{missing.length === 0 ? "Profil complet" : `${missing.length} point${missing.length > 1 ? "s" : ""} à compléter`}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={score} aria-valuemin={0} aria-valuemax={100} aria-label="Complétude du profil">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
       </div>
       {missing.length > 0 && (
         <ul className="flex max-h-64 flex-col gap-1 overflow-auto" data-lenis-prevent>

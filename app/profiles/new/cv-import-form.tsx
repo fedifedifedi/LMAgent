@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ChangeEvent } from "react";
+import { useActionState, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { importCvAction, type ImportCvState } from "@/app/profiles/new/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isHeicFile, isImageFile, resizeImage } from "@/lib/cv/resize-image";
@@ -38,8 +38,26 @@ export function CvImportForm() {
     return () => URL.revokeObjectURL(selected.previewUrl);
   }, [selected]);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  /** Fichier déposé : on le place dans le champ (envoyé avec le formulaire) puis on le traite comme une sélection. */
+  function onDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (!file || !inputRef.current) return;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    inputRef.current.files = transfer.files;
+    void handleFile(file);
+  }
+
   async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    await handleFile(event.target.files?.[0]);
+  }
+
+  async function handleFile(file: File | undefined) {
     setSelected(null);
     setFileError(null);
     if (!file) return;
@@ -77,15 +95,40 @@ export function CvImportForm() {
         </TabsList>
 
         <TabsContent value="file" className="flex flex-col gap-3 pt-4">
-          <Label htmlFor="cv-file">CV en PDF (5 Mo max) ou en image : JPG, PNG, WebP</Label>
-          <Input
-            id="cv-file"
-            name="file"
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp"
-            onChange={onFileChange}
-            disabled={pending}
-          />
+          {/* Zone de dépôt (type « file upload » de 21st.dev) : clic ou glisser-déposer. */}
+          <label
+            htmlFor="cv-file"
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            className={cn(
+              "relative grid cursor-pointer justify-items-center gap-2 overflow-hidden rounded-xl border-[1.5px] border-dashed border-foreground/25 px-5 py-9 text-center transition-colors hover:border-foreground/50 focus-within:ring-[3px] focus-within:ring-ring/50",
+              dragging && "border-primary bg-accent",
+              pending && "pointer-events-none",
+            )}
+          >
+            {pending && <span className="scan-line" aria-hidden="true" />}
+            <span aria-hidden="true" className="grid size-12 place-items-center rounded-xl bg-accent">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+              </svg>
+            </span>
+            <span className="text-base font-semibold">{dragging ? "Dépose le fichier" : selected ? "Changer de fichier" : "Dépose ton CV ici ou clique pour choisir"}</span>
+            <span className="text-sm text-muted-foreground">PDF (5 Mo max) ou image : JPG, PNG, WebP</span>
+            <input
+              ref={inputRef}
+              id="cv-file"
+              name="file"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp"
+              onChange={onFileChange}
+              disabled={pending}
+              className="sr-only"
+            />
+          </label>
           <p className="text-sm text-muted-foreground">
             Une photo ou un PDF scanné est lu directement par le modèle : ce qui est illisible est laissé vide, à toi de le compléter.
           </p>
@@ -107,7 +150,8 @@ export function CvImportForm() {
 
           {selected?.kind === "image" && (
             <figure className="flex flex-col gap-2">
-              <div className="max-h-[28rem] overflow-auto rounded-lg border bg-muted/40 p-2" data-lenis-prevent>
+              <div className="relative max-h-[28rem] overflow-auto rounded-lg border bg-muted/40 p-2" data-lenis-prevent>
+                {pending && <span className="scan-line" aria-hidden="true" />}
                 {/* URL blob locale : next/image n'apporte rien ici. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={selected.previewUrl} alt="Aperçu du CV à analyser" className="mx-auto h-auto max-w-full" />
@@ -143,7 +187,7 @@ export function CvImportForm() {
       )}
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={!canSubmit}>
+        <Button type="submit" disabled={!canSubmit} className="btn-shine">
           {pending ? "Analyse en cours…" : "Analyser le CV"}
         </Button>
         {pending && <p className="text-sm text-muted-foreground">Extraction du profil par le modèle, quelques secondes…</p>}

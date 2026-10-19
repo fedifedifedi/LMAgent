@@ -218,6 +218,30 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
       {/* Pas de suppression pendant qu'une étape tourne : elle écrirait dans une lettre supprimée. */}
       <DeleteLetter id={view.id} title={analysis?.jobTitle ?? "Nouvelle lettre"} disabled={running !== null} />
     </header>
+
+    {/* Progression horizontale de l'agent (barre animée en GSAP) : une colonne par étape. */}
+    <section aria-label="Étapes de l'agent" className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+        <div ref={barRef} className="h-full origin-left rounded-full bg-primary" style={{ transform: `scaleX(${doneCount / STEPS.length})` }} />
+      </div>
+      <ol className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+        {STEPS.map(({ key, label }, index) => {
+          const { state, detail } = states[key];
+          return (
+            <li key={key} className="flex min-w-0 items-start gap-2" aria-current={state === "running" ? "step" : undefined}>
+              <StepIcon state={state} />
+              <span className="flex min-w-0 flex-col">
+                <span className={state === "running" ? "italic" : state === "pending" ? "text-muted-foreground" : "font-medium"}>
+                  {index + 1}. {label}
+                </span>
+                <span className={`text-xs tabular-nums ${state === "failed" ? "text-destructive" : "text-muted-foreground"}`}>{detail || " "}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)]">
       <div className="flex flex-col gap-6">
         <Card>
@@ -294,28 +318,8 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-2xl font-normal">Étapes de l&apos;agent</CardTitle>
-          </CardHeader>
           <CardContent className="flex flex-col gap-4 text-sm">
-            <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-              <div ref={barRef} className="h-full origin-left bg-primary" style={{ transform: `scaleX(${doneCount / STEPS.length})` }} />
-            </div>
-            <ol className="flex flex-col gap-2.5">
-              {STEPS.map(({ key, label }, index) => {
-                const { state, detail } = states[key];
-                return (
-                  <li key={key} className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-3" aria-current={state === "running" ? "step" : undefined}>
-                    <StepIcon state={state} />
-                    <span className={state === "running" ? "italic" : state === "pending" ? "text-muted-foreground" : ""}>
-                      {index + 1}. {label}
-                    </span>
-                    <span className={`text-xs tabular-nums ${state === "failed" ? "text-destructive" : "text-muted-foreground"}`}>{detail}</span>
-                  </li>
-                );
-              })}
-            </ol>
-            <details className="border-t pt-3">
+            <details>
               <summary className="cursor-pointer text-muted-foreground">Détails de la génération</summary>
               <table className="mt-2 w-full tabular-nums">
                 <tbody>
@@ -354,29 +358,36 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
           </Alert>
         )}
 
-        {view.letter && (
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Mise en page">
-            <span className="text-sm text-muted-foreground">Mise en page :</span>
+        {/* Barre d'outils unique : mise en page (contrôle segmenté) et options d'affichage. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-2.5 py-2">
+          <div role="group" aria-label="Mise en page" className="inline-flex overflow-hidden rounded-md border text-sm">
             {(Object.keys(LETTER_TEMPLATES) as LetterTemplate[]).map((key) => (
-              <Toggle key={key} pressed={view.template === key} onChange={() => chooseTemplate(key)} disabled={busy || revealLetter}>
+              <button
+                key={key}
+                type="button"
+                aria-pressed={view.template === key}
+                disabled={!view.letter || busy || revealLetter}
+                onClick={() => chooseTemplate(key)}
+                title={LETTER_TEMPLATES[key].description}
+                className="px-3 py-1.5 font-medium disabled:opacity-50 aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+              >
                 {LETTER_TEMPLATES[key].label}
-              </Toggle>
+              </button>
             ))}
           </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Toggle pressed={showSources} onChange={setShowSources} disabled={!view.letter || revealLetter || editing}>
-            Voir les sources
-          </Toggle>
-          <Toggle pressed={highlight} onChange={setHighlight} disabled={!view.letter || revealLetter || editing}>
-            Surligner les compétences de l&apos;offre
-          </Toggle>
-          <Toggle pressed={editing} onChange={setEditing} disabled={!view.letter || revealLetter || busy || running !== null}>
-            Modifier le texte
-          </Toggle>
-          <span className="text-xs text-muted-foreground">Sources et surlignage : affichage seulement, jamais dans le PDF.</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Toggle pressed={showSources} onChange={setShowSources} disabled={!view.letter || revealLetter || editing}>
+              Sources
+            </Toggle>
+            <Toggle pressed={highlight} onChange={setHighlight} disabled={!view.letter || revealLetter || editing}>
+              Surligner
+            </Toggle>
+            <Toggle pressed={editing} onChange={setEditing} disabled={!view.letter || revealLetter || busy || running !== null}>
+              Modifier le texte
+            </Toggle>
+          </div>
         </div>
+        <span className="-mt-1 text-xs text-muted-foreground">Sources et surlignage : affichage seulement, jamais dans le PDF.</span>
 
         {view.letter && edited > 0 && !editing && (
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -427,18 +438,24 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
           </Alert>
         )}
 
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" disabled={!view.letter || exporting || editing || running !== null} onClick={exportPdf}>
-              {exporting ? "Préparation du PDF…" : "Exporter en PDF"}
-            </Button>
-            {view.letter && <span className="text-sm text-muted-foreground">Une page A4, sans sources ni surlignage.</span>}
-          </div>
-          {exportNotice && (
-            <Alert variant={exportNotice.tone === "error" ? "destructive" : "default"} aria-live="polite">
-              <AlertDescription>{exportNotice.message}</AlertDescription>
-            </Alert>
-          )}
+        {exportNotice && (
+          <Alert variant={exportNotice.tone === "error" ? "destructive" : "default"} aria-live="polite">
+            <AlertDescription>{exportNotice.message}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Barre d'action fixe (type « floating dock ») : l'export reste toujours à portée. */}
+        <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card/90 px-4 py-2.5 shadow-lg backdrop-blur">
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {view.letter
+              ? `Une page A4 · ${letterWordCount(view.letter)} mots · ${new Set(view.letter.paragraphs.flatMap((p) => p.sentences.flatMap((s) => s.sourceIds))).size} sources · ${(totals.input + totals.output).toLocaleString("fr-FR")} tokens`
+              : running
+                ? "Génération en cours…"
+                : "La lettre n'est pas encore prête."}
+          </span>
+          <Button type="button" className="btn-shine" disabled={!view.letter || exporting || editing || running !== null} onClick={exportPdf}>
+            {exporting ? "Préparation du PDF…" : "Exporter en PDF"}
+          </Button>
         </div>
       </div>
     </div>
