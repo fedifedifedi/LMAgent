@@ -11,7 +11,8 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "check:fts5": "node scripts/check-fts5.mjs"
+    "check:fts5": "node scripts/check-fts5.mjs",
+    "llm:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/llm-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
