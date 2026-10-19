@@ -30,6 +30,14 @@ lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de le
 - Plus tard : authentification.
 
 ## Design et animations
+- Direction retenue : « Encre & papier » (référence : https://claude.ai/artifact/LdnhjcHWPiRgaNZYgzLwY8).
+  Typographies : Instrument Serif (titres seulement), Public Sans (interface), Newsreader (lettre, aperçu et PDF).
+  Jetons clair / sombre : fond #F5F6F9 / #10162A, surface #FFFFFF / #172036, encre #1C2A4A / #E7EAF3,
+  accent (bouton) #1C2A4A / #C8D3F5, filet #D9DDE6 / #2A3452, mine #5F6880 / #9BA4BD, cachet (alertes) #B3261E / #EF6B62,
+  surligneur #FFD9B5 / #F3C99F. En sombre, la lettre reste une feuille claire (#ECEEF3, texte #1C2A4A) : c'est le PDF.
+- Écran de la lettre : apparition ligne par ligne (SplitText) ; « Voir les sources » (masquées par défaut, libellé lisible
+  au survol, ex. « Stage Talan, 2025 », jamais l'id brut) ; « Surligner les compétences de l'offre » en option ;
+  tokens et relances dans un détail repliable « Détails de la génération ». Sources, surlignage et détails : JAMAIS dans le PDF.
 - GSAP (+ @gsap/react, hook useGSAP), Lenis (défilement doux), composants React Bits (copiés dans le projet).
 - Animations marquées sur la page d'accueil seulement ; discrètes dans les pages de travail (import du CV, formulaire, génération).
   Génération : animation des étapes de l'agent, apparition progressive de la lettre.
