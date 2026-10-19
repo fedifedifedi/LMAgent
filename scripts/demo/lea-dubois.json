@@ -1,0 +1,66 @@
+{
+  "identity": { "firstName": "Léa", "lastName": "Dubois", "headline": "Data scientist junior" },
+  "contact": { "email": "lea.dubois@example.com", "phone": "06 39 98 41 27", "city": "Bordeaux" },
+  "summary": "Étudiante en master Data Science à l'Université de Bordeaux, je construis des modèles prédictifs en Python et des tableaux de bord utilisés par des équipes métier.",
+  "availability": {
+    "contractTypes": ["pfe-internship"],
+    "durationMonths": 6,
+    "startDate": "2027-02",
+    "mobility": { "cities": ["Bordeaux"], "countries": ["France"] },
+    "acceptsRemote": true
+  },
+  "experiences": [
+    {
+      "id": "exp-banque-atlantique-2025",
+      "title": "Data analyst (stage)",
+      "company": "Banque Atlantique",
+      "location": "Bordeaux",
+      "type": "internship",
+      "start": "2025-04",
+      "end": "2025-08",
+      "achievements": [
+        "Modèle de scoring de churn en Python (scikit-learn), +12 % de précision par rapport au modèle existant",
+        "Automatisation en SQL de l'extraction mensuelle des données clients",
+        "Tableaux de bord Power BI utilisés par 40 conseillers"
+      ],
+      "skills": ["Python", "scikit-learn", "SQL", "Power BI"]
+    },
+    {
+      "id": "exp-atelier-statistique-garonne-2024",
+      "title": "Chargée d'études statistiques (stage)",
+      "company": "Atelier Statistique Garonne",
+      "location": "Bordeaux",
+      "type": "internship",
+      "start": "2024-06",
+      "end": "2024-08",
+      "achievements": [
+        "Analyse de trois ans de données de fréquentation en R",
+        "Rapport mensuel automatisé avec R Markdown"
+      ],
+      "skills": ["R", "Statistiques"]
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj-prevision-tramway",
+      "name": "Prévision de fréquentation du tramway",
+      "summary": "Projet de master : prévoir la fréquentation horaire des stations de tramway à partir de données ouvertes.",
+      "achievements": ["Modèle de gradient boosting (LightGBM) sur séries temporelles, erreur moyenne de 8 %"],
+      "skills": ["Python", "LightGBM", "Séries temporelles"]
+    }
+  ],
+  "education": [
+    { "id": "edu-master-data-science-bordeaux", "degree": "Master Data Science", "school": "Université de Bordeaux", "start": "2024-09", "end": null },
+    { "id": "edu-licence-miashs-bordeaux", "degree": "Licence MIASHS", "school": "Université de Bordeaux", "start": "2021-09", "end": "2024-06" }
+  ],
+  "skills": [
+    { "category": "Langages", "items": ["Python", "SQL", "R"] },
+    { "category": "Machine learning", "items": ["scikit-learn", "LightGBM", "Séries temporelles", "Statistiques"] },
+    { "category": "Visualisation", "items": ["Power BI", "Matplotlib"] },
+    { "category": "Outils", "items": ["Git", "Jupyter"] }
+  ],
+  "languages": [
+    { "name": "Français", "level": "native" },
+    { "name": "Anglais", "level": "C1" }
+  ]
+}

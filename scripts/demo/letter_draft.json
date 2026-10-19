@@ -1,0 +1,35 @@
+{
+  "language": "fr",
+  "subject": "Candidature au stage de fin d'études de data scientist",
+  "salutation": "Bonjour Monsieur Roche,",
+  "paragraphs": [
+    {
+      "sentences": [
+        { "text": "Votre offre de stage de fin d'études chez Hélio Prévisions a retenu toute mon attention, car elle associe la prévision de la consommation d'énergie à l'accompagnement des collectivités.", "sourceIds": [] },
+        { "text": "Étudiante en master Data Science à l'Université de Bordeaux, je souhaite consacrer ce dernier stage à des modèles prédictifs utilisés en conditions réelles.", "sourceIds": ["edu-master-data-science-bordeaux"] }
+      ]
+    },
+    {
+      "sentences": [
+        { "text": "Lors de mon stage de data analyst chez Banque Atlantique, j'ai construit en Python, avec scikit-learn, un modèle de scoring de churn dont la précision dépasse de 12 % celle du modèle existant.", "sourceIds": ["exp-banque-atlantique-2025"] },
+        { "text": "J'y ai aussi automatisé en SQL l'extraction mensuelle des données clients, ce qui m'a appris à fiabiliser une chaîne de données avant de la modéliser.", "sourceIds": ["exp-banque-atlantique-2025"] },
+        { "text": "J'ai enfin conçu des tableaux de bord Power BI utilisés par 40 conseillers, une expérience directement utile pour restituer vos prévisions à vos clients.", "sourceIds": ["exp-banque-atlantique-2025"] }
+      ]
+    },
+    {
+      "sentences": [
+        { "text": "Les séries temporelles sont au cœur de mon projet de master, qui prévoit la fréquentation horaire des stations de tramway à partir de données ouvertes.", "sourceIds": ["proj-prevision-tramway"] },
+        { "text": "Le modèle de gradient boosting que j'ai développé avec LightGBM atteint une erreur moyenne de 8 %.", "sourceIds": ["proj-prevision-tramway"] },
+        { "text": "Auparavant, mon stage à l'Atelier Statistique Garonne m'avait déjà conduite à analyser trois ans de données de fréquentation et à automatiser un rapport mensuel.", "sourceIds": ["exp-atelier-statistique-garonne-2024"] },
+        { "text": "Mon niveau d'anglais (C1) me permet par ailleurs de lire la documentation et la littérature techniques sans difficulté.", "sourceIds": ["profile-languages"] }
+      ]
+    },
+    {
+      "sentences": [
+        { "text": "Rejoindre une équipe d'une vingtaine de personnes qui aide les collectivités à piloter leur énergie donnerait un sens concret à mon travail de modélisation.", "sourceIds": [] },
+        { "text": "Je suis disponible pour un stage de six mois à partir de février 2027 et serais ravie d'échanger avec vous lors d'un entretien.", "sourceIds": ["profile-availability"] }
+      ]
+    }
+  ],
+  "closing": "Je vous prie d'agréer, Monsieur, l'expression de mes salutations distinguées."
+}

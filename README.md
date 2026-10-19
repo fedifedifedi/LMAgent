@@ -12,7 +12,7 @@
 ![Prisma](https://img.shields.io/badge/Prisma-7_+_libSQL-2D3748?logo=prisma)
 ![Tests](https://img.shields.io/badge/tests-bun_test-F9F1E1?logo=bun&logoColor=black)
 
-<img src="docs/screenshots/home.png" alt="Page d'accueil de LMAgent" width="860" />
+<img src="docs/screenshots/accueil-clair-1440x900@2x.png" alt="Page d'accueil de LMAgent" width="860" />
 
 </div>
 
@@ -60,20 +60,19 @@ signalent toute compétence revendiquée qui n'y figure pas.
 
 | Import du CV | Vérification du profil |
 |---|---|
-| <img src="docs/screenshots/import.png" alt="Import du CV par glisser-déposer" /> | <img src="docs/screenshots/review.png" alt="Formulaire de vérification du profil" /> |
+| <img src="docs/screenshots/import-cv-clair-1440x900@2x.png" alt="Import du CV par glisser-déposer" /> | <img src="docs/screenshots/verification-cv-clair-1440x900@2x.png" alt="Formulaire de vérification du profil" /> |
 
 | Fiche du profil | Lettre générée |
 |---|---|
-| <img src="docs/screenshots/profile.png" alt="Fiche du profil avec complétude et parcours" /> | <img src="docs/screenshots/letter.png" alt="Lettre générée avec les étapes de l'agent" /> |
+| <img src="docs/screenshots/profil-clair-1440x900@2x.png" alt="Fiche du profil avec complétude et parcours" /> | <img src="docs/screenshots/lettre-sources-clair-1440x900@2x.png" alt="Lettre générée avec les étapes de l'agent" /> |
 
-<details>
-<summary>Lettre en thème sombre</summary>
+| Lettre en thème sombre | PDF exporté (page 1) |
+|---|---|
+| <img src="docs/screenshots/lettre-sources-sombre-1440x900@2x.png" alt="Page de la lettre en thème sombre" /> | <img src="docs/screenshots/pdf-page1-clair-1440x900@2x.png" alt="Première page du PDF exporté" /> |
 
-<img src="docs/screenshots/letter-dark.png" alt="Page de la lettre en thème sombre" />
-
-</details>
-
-Les captures utilisent des profils fictifs et le provider `mock`.
+Les captures montrent un profil fictif (Léa Dubois) et une lettre générée par le provider `mock` : `npm run demo:seed`
+crée cette base de démonstration (données dans `scripts/demo/`), sans toucher à `prisma/dev.db`.
+Toutes les pages existent aussi en thème sombre et au format 1080 × 1350 dans `docs/screenshots/`.
 
 ## Technologies
 
@@ -131,6 +130,7 @@ Les clés restent côté serveur et ne sont jamais envoyées au navigateur. `.en
 | `npm run build` puis `npm run start` | Version de production |
 | `npm test` | Tests (`bun test`, sans appel réel à un modèle) |
 | `npm run lint` | ESLint |
+| `npm run demo:seed` | Base de démonstration fictive (Léa Dubois) dans un dossier temporaire |
 | `npm run llm:smoke` / `npm run letter:smoke` | Test réel du provider configuré (consomme du quota) |
 
 ## Structure

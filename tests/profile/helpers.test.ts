@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { draftToFormValues, OTHER_SKILLS_CATEGORY, profileToFormValues, syncSkillsIntoGroups, type ProfileFormValues } from "@/lib/profile/form-values";
 import { ensureIds, slugify, uniqueId } from "@/lib/profile/ids";
-import { educationLabel, experienceLabel, periodLabel, projectLabel } from "@/lib/profile/labels";
+import { dateLabel, educationLabel, experienceLabel, periodLabel, projectLabel } from "@/lib/profile/labels";
 import { mergeProjectIntoExperience } from "@/lib/profile/merge";
 import { profileWarnings } from "@/lib/profile/warnings";
 import { cleanProfileInput } from "@/lib/profile/clean";
@@ -121,5 +121,14 @@ describe("profileWarnings", () => {
       "education.0.start | Master Data Science, Université de Bordeaux, 2023 – 2025 : début 2023, mois à préciser ?",
       "education.0.end | Master Data Science, Université de Bordeaux, 2023 – 2025 : fin 2025, mois à préciser ?",
     ]);
+  });
+});
+
+describe("dateLabel", () => {
+  test("écrit la date en toutes lettres, à la précision de la source", () => {
+    expect(dateLabel("2027")).toBe("2027");
+    expect(dateLabel("2027-02")).toBe("février 2027");
+    expect(dateLabel("2027-02-05")).toBe("5 février 2027");
+    expect(dateLabel("2026-12")).toBe("décembre 2026");
   });
 });

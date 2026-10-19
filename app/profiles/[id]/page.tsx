@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listProfileLetters } from "@/lib/letters/view";
 import { profileCompleteness, profileTimeline, skillUsage, type TimelineEntry } from "@/lib/profile/completeness";
-import { CONTRACT_TYPE_LABELS, EXPERIENCE_TYPE_LABELS, LANGUAGE_LEVEL_LABELS, periodLabel } from "@/lib/profile/labels";
+import { CONTRACT_TYPE_LABELS, dateLabel, EXPERIENCE_TYPE_LABELS, LANGUAGE_LEVEL_LABELS, periodLabel } from "@/lib/profile/labels";
 import { getProfile } from "@/lib/repositories/profiles";
 import { normalizeSkill, type Profile } from "@/lib/schemas/profile";
 
@@ -99,7 +99,7 @@ async function ProfileView({ params, searchParams }: Pick<PageProps<"/profiles/[
             <p>
               {p.availability.contractTypes.map((t) => CONTRACT_TYPE_LABELS[t]).join(", ")}
               {p.availability.durationMonths ? ` · ${p.availability.durationMonths} mois` : ""}
-              {p.availability.startDate ? ` · à partir de ${p.availability.startDate}` : ""}
+              {p.availability.startDate ? ` · à partir de ${dateLabel(p.availability.startDate)}` : ""}
             </p>
             <p className="text-muted-foreground">
               Mobilité : {[...p.availability.mobility.cities, ...p.availability.mobility.countries].join(", ") || "non précisée"} · Télétravail :{" "}

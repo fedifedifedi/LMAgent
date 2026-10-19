@@ -1,0 +1,28 @@
+{
+  "language": "fr",
+  "jobTitle": "Stage de fin d'études — Data scientist",
+  "company": "Hélio Prévisions",
+  "location": "Bordeaux (hybride)",
+  "contractType": "Stage de fin d'études",
+  "duration": "6 mois",
+  "startDate": "Février 2027",
+  "contact": { "name": "Julien Roche", "civility": "M.", "role": "Responsable data" },
+  "missions": [
+    "Construire et évaluer des modèles de prévision de consommation en Python",
+    "Fiabiliser les chaînes de données en SQL",
+    "Restituer les prévisions aux clients dans des tableaux de bord"
+  ],
+  "requirements": [
+    { "name": "Python", "kind": "hard", "importance": "required" },
+    { "name": "SQL", "kind": "hard", "importance": "required" },
+    { "name": "Séries temporelles", "kind": "hard", "importance": "required" },
+    { "name": "Power BI", "kind": "hard", "importance": "preferred" },
+    { "name": "Docker", "kind": "hard", "importance": "preferred" },
+    { "name": "Anglais professionnel", "kind": "language", "importance": "preferred" }
+  ],
+  "companyFacts": [
+    "Hélio Prévisions aide les collectivités à prévoir et piloter leur consommation d'énergie",
+    "L'équipe compte une vingtaine de personnes à Bordeaux"
+  ],
+  "keywords": ["data science", "prévision", "séries temporelles", "Python", "SQL", "énergie", "collectivités"]
+}

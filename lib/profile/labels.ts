@@ -41,6 +41,16 @@ export function periodLabel(start?: string | null, end?: string | null): string 
   return to && to !== from ? `${from} – ${to}` : from;
 }
 
+const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+/** Date à la précision de la source, en toutes lettres : « 2027 », « février 2027 », « 15 février 2027 ». */
+export function dateLabel(date: string): string {
+  const [year, month, day] = date.split("-");
+  const monthName = month ? MONTHS[Number(month) - 1] : undefined;
+  if (!monthName) return year;
+  return day ? `${Number(day)} ${monthName} ${year}` : `${monthName} ${year}`;
+}
+
 const join = (...parts: Array<string | undefined>) => parts.filter(Boolean).join(", ");
 
 /**

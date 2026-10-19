@@ -1,0 +1,16 @@
+{
+  "requirements": [
+    { "name": "Python", "status": "matched", "evidence": "Modèle de scoring de churn en Python ; projet de prévision du tramway", "sourceIds": ["exp-banque-atlantique-2025", "proj-prevision-tramway"] },
+    { "name": "SQL", "status": "matched", "evidence": "Automatisation en SQL de l'extraction mensuelle des données clients", "sourceIds": ["exp-banque-atlantique-2025"] },
+    { "name": "Séries temporelles", "status": "matched", "evidence": "Gradient boosting sur séries temporelles, erreur moyenne de 8 %", "sourceIds": ["proj-prevision-tramway"] },
+    { "name": "Power BI", "status": "matched", "evidence": "Tableaux de bord Power BI utilisés par 40 conseillers", "sourceIds": ["exp-banque-atlantique-2025"] },
+    { "name": "Docker", "status": "missing", "evidence": "", "sourceIds": [] },
+    { "name": "Anglais professionnel", "status": "matched", "evidence": "Anglais C1", "sourceIds": ["profile-languages"] }
+  ],
+  "arguments": [
+    { "point": "Modèle de scoring de churn en Python, +12 % de précision", "sourceIds": ["exp-banque-atlantique-2025"] },
+    { "point": "Projet de prévision de fréquentation sur séries temporelles, erreur moyenne de 8 %", "sourceIds": ["proj-prevision-tramway"] },
+    { "point": "Tableaux de bord Power BI pour des équipes métier", "sourceIds": ["exp-banque-atlantique-2025"] },
+    { "point": "Disponible six mois à partir de février 2027", "sourceIds": ["profile-availability"] }
+  ]
+}
