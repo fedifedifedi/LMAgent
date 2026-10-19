@@ -26,6 +26,12 @@ async function CvImportView({ params }: Pick<PageProps<"/profiles/import/[id]">,
 
   const { draft, usage } = cvImport;
   const warnings = draftWarnings(draft);
+  const sourceLabel = {
+    PDF: `PDF « ${cvImport.sourceName} »`,
+    IMAGE: `image « ${cvImport.sourceName} »`,
+    TEXT: "texte collé",
+  }[cvImport.source];
+  const readModeLabel = cvImport.readMode === "NATIVE" ? "lu directement par le modèle" : "texte extrait";
   const fullName = [draft.identity.firstName, draft.identity.lastName].filter(Boolean).join(" ") || "Nom non trouvé";
   const counts = [
     ["Expériences", draft.experiences.length],
@@ -51,7 +57,7 @@ async function CvImportView({ params }: Pick<PageProps<"/profiles/import/[id]">,
             ))}
           </div>
           <p className="text-sm text-muted-foreground">
-            Source : {cvImport.source === "PDF" ? `PDF « ${cvImport.sourceName} »` : "texte collé"} · {usage.provider} /{" "}
+            Source : {sourceLabel} ({readModeLabel}) · {usage.provider} /{" "}
             {usage.model} · {usage.inputTokens + usage.outputTokens} tokens{usage.estimated ? " (estimés)" : ""} ·{" "}
             {usage.attempts} tentative{usage.attempts > 1 ? "s" : ""}
           </p>
@@ -64,6 +70,15 @@ async function CvImportView({ params }: Pick<PageProps<"/profiles/import/[id]">,
           <AlertDescription>
             <p>Le modèle n&apos;a pas respecté tout le format attendu. Les champs concernés ont été vidés ; vérifie-les.</p>
             <pre className="mt-2 whitespace-pre-wrap text-xs">{cvImport.issues}</pre>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {cvImport.readMode === "NATIVE" && (
+        <Alert>
+          <AlertTitle>CV lu à partir de l&apos;image</AlertTitle>
+          <AlertDescription>
+            Les passages illisibles ont été laissés vides plutôt que devinés : compare le brouillon avec ton CV.
           </AlertDescription>
         </Alert>
       )}

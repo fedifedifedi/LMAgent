@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { LLMValidationError } from "@/lib/llm/errors";
 import { toTargetJsonSchema } from "@/lib/llm/json-schema";
-import type { ConversationTurn, LLMOutput, LLMProvider, LLMUsage, ReasoningLevel } from "@/lib/llm/types";
+import type { Attachment, ConversationTurn, LLMOutput, LLMProvider, LLMUsage, ReasoningLevel } from "@/lib/llm/types";
 
 /** Appel initial + 2 relances. */
 export const MAX_ATTEMPTS = 3;
@@ -14,6 +14,7 @@ export type GenerateObjectRequest<T extends z.ZodObject, L extends z.ZodType> = 
   provider: LLMProvider;
   maxOutputTokens?: number;
   reasoning?: ReasoningLevel;
+  attachments?: Attachment[];
   /** Appelé une fois par appel, succès ou échec de validation, avec la consommation cumulée. */
   onUsage?: (usage: LLMUsage) => void;
 };
@@ -85,6 +86,7 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
       turns,
       maxOutputTokens: request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
       reasoning: request.reasoning,
+      attachments: request.attachments,
     });
 
     usage.attempts = attempt;

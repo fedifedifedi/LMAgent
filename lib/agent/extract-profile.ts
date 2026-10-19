@@ -1,9 +1,9 @@
 import { generateObject, type GenerateObjectResult } from "@/lib/llm";
-import type { LLMProvider } from "@/lib/llm/types";
+import type { Attachment, LLMProvider } from "@/lib/llm/types";
 import { LLM_OUTPUTS } from "@/lib/schemas/llm-outputs";
 import type { ProfileDraft } from "@/lib/schemas/profile";
 
-export const EXTRACT_PROFILE_SYSTEM = `You extract a candidate profile from the text of a CV into the given JSON schema.
+export const EXTRACT_PROFILE_SYSTEM = `You extract a candidate profile from a CV into the given JSON schema.
 
 Rules:
 - Copy, do not write. Use only information explicitly present in the CV. If a field is not in the CV, leave it out. Never guess, infer or complete.
@@ -17,14 +17,24 @@ Rules:
 - skills (global list): group the skills listed in the CV by category, using the CV's own categories when it has them.
 - ids: unique kebab-case identifiers derived from the content, e.g. exp-acme-2023, proj-chatbot, edu-insa.`;
 
+/** Règle ajoutée quand le modèle lit le fichier lui-même (image, PDF scanné). */
+export const NATIVE_READING_RULE = `- The CV is the attached file. If a part is illegible (blurry, cut off, too small, hidden), omit it rather than guess. Never reconstruct a partially readable word, date, name or number.`;
+
 export type ExtractProfileResult = GenerateObjectResult<ProfileDraft>;
 
-/** Extraction d'un CV vers un brouillon de profil (recopie structurée : réflexion basse). */
-export function extractProfile(cvText: string, options: { provider?: LLMProvider } = {}): Promise<ExtractProfileResult> {
+export type CvSourceContent = { text: string } | { file: Attachment };
+
+/** Extraction d'un CV (texte, ou fichier lu nativement) vers un brouillon de profil. Recopie structurée : réflexion basse. */
+export function extractProfile(
+  source: CvSourceContent,
+  options: { provider?: LLMProvider } = {},
+): Promise<ExtractProfileResult> {
+  const native = "file" in source;
   return generateObject({
     output: LLM_OUTPUTS.profile_draft,
-    system: EXTRACT_PROFILE_SYSTEM,
-    prompt: `CV:\n\n${cvText}`,
+    system: native ? `${EXTRACT_PROFILE_SYSTEM}\n${NATIVE_READING_RULE}` : EXTRACT_PROFILE_SYSTEM,
+    prompt: native ? "Extract the profile from the attached CV." : `CV:\n\n${source.text}`,
+    attachments: native ? [source.file] : undefined,
     reasoning: "low",
     provider: options.provider,
   });

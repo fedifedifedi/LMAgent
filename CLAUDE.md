@@ -7,14 +7,13 @@ dans un formulaire, puis le profil est enregistré en base. Il choisit ensuite u
 et l'agent produit une lettre spécifique à cette offre. Pas d'authentification pour l'instant.
 
 ## Feuille de route
-Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5) · 4. Couche LLM · 5. Import du CV (PDF texte ou texte collé).
+Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5) · 4. Couche LLM · 5. Import du CV (PDF texte ou texte collé)
+· 5b. CV en image (JPG, PNG, WebP redimensionnés par canvas dans le navigateur, aperçu, HEIC refusé avec message) et PDF scannés,
+lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de lecture native pour les PDF texte (jugée inutile).
 
 À faire, dans cet ordre (proposer le plan détaillé avant chaque étape) :
-- **5b. CV en image et lecture native** : JPG, PNG, WebP envoyés directement au LLM (lecture native), de même que les PDF scannés
-  (automatique quand le PDF n'a pas de texte) et, en option, les PDF texte (mise en page en colonnes). Images redimensionnées
-  dans le navigateur avec canvas avant l'envoi (pas de sharp : module natif). HEIC : message demandant de convertir en JPG.
-  Aperçu de l'image avant l'analyse. Le prompt demande d'omettre ce qui est illisible plutôt que de deviner. Le mock gère ce
-  chemin avec sa fixture.
+- **Avant toute interface de l'étape 6** : proposer 2 ou 3 directions visuelles (palette, typographies, cartes et boutons,
+  effets GSAP / React Bits et où), incluant l'écran de génération et l'aperçu de la lettre. L'utilisateur choisit, puis on code.
 - **6. Formulaire du profil** : vérification et correction du brouillon, validation par ProfileSchema, enregistrement (Profile,
   CvImport.profileId). Dates à l'année signalées ; summary écrit par l'utilisateur (éventuel bouton « Proposer un résumé » à relire).
   Champs vides importants signalés : disponibilité (durée, mobilité), compétences vides, réalisations vides.
@@ -37,6 +36,9 @@ Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5
 - Lenis désactivé (data-lenis-prevent) sur les zones qui défilent : textarea, aperçu de la lettre, listes.
 - Respecter prefers-reduced-motion (animations coupées ou réduites, Lenis désactivé).
 - Pas de composants React Bits en WebGL (three.js, ogl) : seulement texte, cartes, boutons, fonds légers en CSS/SVG.
+- Pas de `motion` (ex-Framer Motion) : seulement des composants React Bits en GSAP ou en CSS.
+- Design intégré au fil des étapes : socle (Lenis, reduced motion) et animations discrètes à l'étape 6, étapes de l'agent et
+  apparition de la lettre à l'étape 7, animations marquées de l'accueil et templates de lettre à l'étape 8.
 
 ## Stack
 Next.js 16 (App Router, Cache Components), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/sdk, @google/genai, Zod,
@@ -70,8 +72,10 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
 - Dates à la précision de la source : YYYY ou YYYY-MM (startDate : jusqu'à YYYY-MM-DD). Jamais de mois ou de jour inventé ;
   les dates à l'année sont signalées (isIncompleteDate, lib/cv/draft-warnings.ts). Pas de format "date" dans les schémas cibles :
   Gemini inventait alors le jour.
-- Import du CV : /profiles/new → importCvAction → lib/cv/import.ts (texte via unpdf ou collé, extractProfile avec
-  reasoning "low", CvImport persisté) → /profiles/import/[id]. summary rempli seulement si le CV a son propre résumé.
+- Import du CV : /profiles/new → importCvAction → lib/cv/import.ts → /profiles/import/[id]. Type du fichier détecté par ses
+  octets (lib/cv/file-type.ts). Texte collé ou PDF avec texte (unpdf) → readMode TEXT ; image ou PDF scanné → readMode NATIVE
+  (fichier joint, attachments de generateObject). extractProfile en reasoning "low", CvImport persisté.
+  summary rempli seulement si le CV a son propre résumé ; un stage ou un emploi va dans experiences, jamais dans projects.
 - Pages qui lisent la base (Cache Components) : lecture dans un composant sous <Suspense>, params lus dedans.
 
 ## LLM (lib/llm/)

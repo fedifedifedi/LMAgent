@@ -40,9 +40,13 @@ export function createGeminiProvider(options: { apiKey: string; model: string; c
     name: "gemini",
     model: options.model,
     async complete(request) {
-      const contents: Content[] = request.turns.map((turn) => ({
+      // Fichiers joints (lecture native) en tête du premier message utilisateur.
+      const files = (request.attachments ?? []).map((file) => ({
+        inlineData: { mimeType: file.mimeType, data: Buffer.from(file.data).toString("base64") },
+      }));
+      const contents: Content[] = request.turns.map((turn, index) => ({
         role: turn.role === "user" ? "user" : "model",
-        parts: [{ text: turn.text }],
+        parts: index === 0 ? [...files, { text: turn.text }] : [{ text: turn.text }],
       }));
 
       let response;

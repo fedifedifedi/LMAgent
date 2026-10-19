@@ -26,17 +26,25 @@ model Profile {
 
 enum CvSource {
   PDF
+  IMAGE
   TEXT
+}
+
+/// TEXT : le modèle reçoit le texte extrait ou collé. NATIVE : il lit le fichier lui-même (image, PDF scanné).
+enum CvReadMode {
+  TEXT
+  NATIVE
 }
 
 /// Import d'un CV : texte extrait et brouillon LLM, conservés jusqu'à la validation du profil (étape 6).
 model CvImport {
-  id         String   @id @default(cuid())
+  id         String     @id @default(cuid())
   source     CvSource
-  /// Nom du fichier PDF téléversé.
+  readMode   CvReadMode @default(TEXT)
+  /// Nom du fichier téléversé.
   sourceName String?
-  /// Texte du CV après extraction et normalisation.
-  text       String
+  /// Texte du CV après extraction et normalisation ; null en lecture native.
+  text       String?
   /// Brouillon validé par ProfileDraftSchema.
   draft      Json
   /// true si seul le schéma tolérant a pu récupérer la sortie du LLM ; issues contient alors les erreurs.

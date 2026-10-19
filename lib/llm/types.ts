@@ -28,8 +28,15 @@ export type ConversationTurn = { role: "user"; text: string } | { role: "assista
  */
 export type ReasoningLevel = "low" | "medium" | "high";
 
+export type AttachmentMimeType = "application/pdf" | "image/jpeg" | "image/png" | "image/webp";
+
+/** Fichier lu nativement par le modèle (CV en image, PDF scanné), joint au premier message utilisateur. */
+export type Attachment = { mimeType: AttachmentMimeType; data: Uint8Array };
+
 export type CompletionRequest = {
   reasoning?: ReasoningLevel;
+  /** Renvoyés à chaque tentative (ils font partie du premier message) : une relance coûte leur lecture à nouveau. */
+  attachments?: Attachment[];
   /** Nom de la sortie (clé des fixtures mock). */
   name: string;
   jsonSchema: Record<string, unknown>;

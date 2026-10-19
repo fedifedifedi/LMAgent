@@ -74,6 +74,32 @@ describe("provider anthropic", () => {
     expect(requests[1].output_config.effort).toBeUndefined();
   });
 
+  test("fichiers joints : blocs image / document en base64 avant le texte du premier message, à chaque tentative", async () => {
+    const { provider, requests } = create([
+      anthropicMessage('{"level":"C1","since":"depuis"}'),
+      anthropicMessage('{"level":"C1","since":"2019"}'),
+    ]);
+    const png = new Uint8Array([1, 2, 3]);
+    const pdf = new Uint8Array([4, 5]);
+    await generateObject({
+      ...base,
+      provider,
+      attachments: [
+        { mimeType: "image/png", data: png },
+        { mimeType: "application/pdf", data: pdf },
+      ],
+    });
+
+    for (const request of requests) {
+      expect(request.messages[0].content).toEqual([
+        { type: "image", source: { type: "base64", media_type: "image/png", data: "AQID" } },
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: "BAU=" } },
+        { type: "text", text: "Anglais courant depuis 2019" },
+      ]);
+    }
+    expect(typeof requests[1].messages[2].content).toBe("string");
+  });
+
   test("relance : contenu assistant renvoyé tel quel, puis l'erreur Zod", async () => {
     const first = anthropicMessage('{"level":"C1","since":"depuis 2019"}');
     const { provider, requests } = create([first, anthropicMessage('{"level":"C1","since":"2019"}')]);
@@ -140,6 +166,18 @@ describe("provider gemini", () => {
     expect(requests[0].config.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
     expect(requests[1].config.thinkingConfig).toEqual({ thinkingLevel: "HIGH" });
     expect(requests[2].config.thinkingConfig).toBeUndefined();
+  });
+
+  test("fichiers joints : inlineData en base64 avant le texte du premier message", async () => {
+    const { provider, requests } = create([geminiResponse('{"level":"B2","since":"2019"}')]);
+    await generateObject({ ...base, provider, attachments: [{ mimeType: "image/jpeg", data: new Uint8Array([1, 2, 3]) }] });
+
+    expect(requests[0].contents).toEqual([
+      {
+        role: "user",
+        parts: [{ inlineData: { mimeType: "image/jpeg", data: "AQID" } }, { text: "Anglais courant depuis 2019" }],
+      },
+    ]);
   });
 
   test("relance : tour model avec la réponse précédente puis tour user avec l'erreur", async () => {

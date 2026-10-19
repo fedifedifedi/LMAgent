@@ -1,5 +1,6 @@
 // Test réel du provider configuré dans .env.local (appels payants / soumis aux quotas).
 // Lancer : npm run llm:smoke   — la clé API n'est jamais lue ni affichée ici.
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { extractProfile } from "@/lib/agent/extract-profile";
 import { generateObject, getProvider, type LLMUsage } from "@/lib/llm";
@@ -58,4 +59,11 @@ await run("1. Petit schéma", () =>
   }),
 );
 
-await run("2. extractProfile (profile_draft, réflexion basse)", () => extractProfile(CV, { provider }));
+await run("2. extractProfile sur texte (réflexion basse)", () => extractProfile({ text: CV }, { provider }));
+
+await run("3. extractProfile sur image PNG (lecture native)", () =>
+  extractProfile(
+    { file: { mimeType: "image/png", data: new Uint8Array(readFileSync("tests/fixtures/cv-sample.png")) } },
+    { provider },
+  ),
+);

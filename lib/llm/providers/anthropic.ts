@@ -18,10 +18,17 @@ export function createAnthropicProvider(options: { apiKey: string; model: string
     name: "anthropic",
     model: options.model,
     async complete(request) {
+      // Fichiers joints (lecture native) placés avant le texte du premier message utilisateur.
+      const files: Anthropic.ContentBlockParam[] = (request.attachments ?? []).map((file) => {
+        const data = Buffer.from(file.data).toString("base64");
+        return file.mimeType === "application/pdf"
+          ? { type: "document", source: { type: "base64", media_type: "application/pdf", data } }
+          : { type: "image", source: { type: "base64", media_type: file.mimeType, data } };
+      });
       // Les réponses précédentes sont renvoyées telles quelles (blocs de réflexion compris).
-      const messages: Anthropic.MessageParam[] = request.turns.map((turn) =>
+      const messages: Anthropic.MessageParam[] = request.turns.map((turn, index) =>
         turn.role === "user"
-          ? { role: "user", content: turn.text }
+          ? { role: "user", content: index === 0 && files.length ? [...files, { type: "text", text: turn.text }] : turn.text }
           : { role: "assistant", content: (turn.native as Anthropic.ContentBlockParam[] | undefined) ?? turn.text },
       );
 

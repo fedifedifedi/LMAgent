@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState, type ChangeEvent } from "react";
 import { importCvAction, type ImportCvState } from "@/app/profiles/new/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,63 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { isHeicFile, isImageFile, resizeImage } from "@/lib/cv/resize-image";
 
-type Mode = "pdf" | "text";
+type Mode = "file" | "text";
+
+type Selected =
+  | { kind: "pdf"; name: string; size: number }
+  | { kind: "image"; name: string; blob: Blob; previewUrl: string; width: number; height: number };
+
+const kilobytes = (bytes: number) => `${Math.round(bytes / 1024).toLocaleString("fr-FR")} Ko`;
 
 export function CvImportForm() {
-  const [state, formAction, pending] = useActionState<ImportCvState, FormData>(importCvAction, {});
-  const [mode, setMode] = useState<Mode>("pdf");
+  const [mode, setMode] = useState<Mode>("file");
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
+
+  // L'image envoyée est la version redimensionnée, pas le fichier d'origine.
+  const [state, formAction, pending] = useActionState<ImportCvState, FormData>(async (previous, formData) => {
+    if (formData.get("mode") === "file" && selected?.kind === "image") {
+      const name = selected.name.replace(/\.[^.]+$/, "") + ".jpg";
+      formData.set("file", new File([selected.blob], name, { type: "image/jpeg" }));
+    }
+    return importCvAction(previous, formData);
+  }, {});
+
+  useEffect(() => {
+    if (selected?.kind !== "image") return;
+    return () => URL.revokeObjectURL(selected.previewUrl);
+  }, [selected]);
+
+  async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setSelected(null);
+    setFileError(null);
+    if (!file) return;
+
+    if (isHeicFile(file)) {
+      setFileError("Les photos HEIC (iPhone) ne sont pas prises en charge : convertis-la en JPG puis réessaie.");
+      return;
+    }
+    if (!isImageFile(file)) {
+      setSelected({ kind: "pdf", name: file.name, size: file.size });
+      return;
+    }
+
+    setPreparing(true);
+    try {
+      const { blob, width, height } = await resizeImage(file);
+      setSelected({ kind: "image", name: file.name, blob, width, height, previewUrl: URL.createObjectURL(blob) });
+    } catch (error) {
+      setFileError(error instanceof Error ? error.message : "Impossible de lire cette image.");
+    } finally {
+      setPreparing(false);
+    }
+  }
+
+  const canSubmit = !pending && !preparing && (mode === "text" || (selected !== null && !fileError));
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -21,16 +72,52 @@ export function CvImportForm() {
 
       <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
         <TabsList>
-          <TabsTrigger value="pdf">Téléverser un PDF</TabsTrigger>
+          <TabsTrigger value="file">Téléverser un fichier</TabsTrigger>
           <TabsTrigger value="text">Coller le texte</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pdf" className="flex flex-col gap-2 pt-4">
-          <Label htmlFor="cv-file">CV au format PDF (5 Mo max)</Label>
-          <Input id="cv-file" name="file" type="file" accept="application/pdf,.pdf" disabled={pending} />
+        <TabsContent value="file" className="flex flex-col gap-3 pt-4">
+          <Label htmlFor="cv-file">CV en PDF (5 Mo max) ou en image : JPG, PNG, WebP</Label>
+          <Input
+            id="cv-file"
+            name="file"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp"
+            onChange={onFileChange}
+            disabled={pending}
+          />
           <p className="text-sm text-muted-foreground">
-            Un PDF scanné (image) ne contient pas de texte : utilise plutôt l&apos;onglet « Coller le texte ».
+            Une photo ou un PDF scanné est lu directement par le modèle : ce qui est illisible est laissé vide, à toi de le compléter.
           </p>
+
+          {preparing && <p className="text-sm text-muted-foreground">Préparation de l&apos;image…</p>}
+
+          {fileError && (
+            <Alert variant="destructive" aria-live="polite">
+              <AlertTitle>Fichier non accepté</AlertTitle>
+              <AlertDescription>{fileError}</AlertDescription>
+            </Alert>
+          )}
+
+          {selected?.kind === "pdf" && (
+            <p className="text-sm">
+              PDF sélectionné : <span className="font-medium">{selected.name}</span> ({kilobytes(selected.size)})
+            </p>
+          )}
+
+          {selected?.kind === "image" && (
+            <figure className="flex flex-col gap-2">
+              <div className="max-h-[28rem] overflow-auto rounded-lg border bg-muted/40 p-2" data-lenis-prevent>
+                {/* URL blob locale : next/image n'apporte rien ici. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={selected.previewUrl} alt="Aperçu du CV à analyser" className="mx-auto h-auto max-w-full" />
+              </div>
+              <figcaption className="text-sm text-muted-foreground">
+                {selected.name} · envoyée en {selected.width} × {selected.height} px, {kilobytes(selected.blob.size)}. Vérifie
+                que le texte est lisible avant de lancer l&apos;analyse.
+              </figcaption>
+            </figure>
+          )}
         </TabsContent>
 
         <TabsContent value="text" className="flex flex-col gap-2 pt-4">
@@ -43,6 +130,7 @@ export function CvImportForm() {
             key={state.text ?? "empty"}
             placeholder="Colle ici le contenu de ton CV…"
             disabled={pending}
+            data-lenis-prevent
           />
         </TabsContent>
       </Tabs>
@@ -55,7 +143,7 @@ export function CvImportForm() {
       )}
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={!canSubmit}>
           {pending ? "Analyse en cours…" : "Analyser le CV"}
         </Button>
         {pending && <p className="text-sm text-muted-foreground">Extraction du profil par le modèle, quelques secondes…</p>}

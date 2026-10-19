@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { cvTextFromPaste, cvTextFromPdf, CvTextError, MAX_CV_CHARS, MAX_PDF_BYTES, normalizeCvText } from "@/lib/cv/extract-text";
+import { cvTextFromPaste, cvTextFromPdf, MAX_CV_CHARS, normalizeCvText } from "@/lib/cv/extract-text";
+import { detectCvFileType } from "@/lib/cv/file-type";
+import { fitWithin, isHeicFile, isImageFile } from "@/lib/cv/resize-image";
 
-// PDF générés avec Edge headless (--print-to-pdf) : un CV d'une page, et une page sans texte (simule un scan).
+// Générés avec Edge headless : un CV d'une page (PDF et capture PNG), et une page PDF sans texte (simule un scan).
 const fixture = (name: string) => new Uint8Array(readFileSync(path.join(import.meta.dir, "..", "fixtures", name)));
+const bytes = (...values: Array<number | string>) =>
+  new Uint8Array(values.flatMap((value) => (typeof value === "string" ? [...value].map((c) => c.charCodeAt(0)) : [value])));
 
 describe("cvTextFromPdf", () => {
   test("extrait le texte d'un PDF, accents et caractères spéciaux compris", async () => {
@@ -15,23 +19,44 @@ describe("cvTextFromPdf", () => {
     expect(text).not.toMatch(/\n{3,}/);
   });
 
-  test("PDF sans couche texte (scan) : message invitant à coller le texte", async () => {
-    await expect(cvTextFromPdf(fixture("blank.pdf"))).rejects.toThrow(/scan.*Colle le texte/);
-  });
-
-  test("fichier qui n'est pas un PDF", async () => {
-    await expect(cvTextFromPdf(new TextEncoder().encode("Bonjour, ceci est un .docx"))).rejects.toThrow("Le fichier n'est pas un PDF.");
-  });
-
-  test("PDF trop lourd, refusé avant lecture", async () => {
-    const big = new Uint8Array(MAX_PDF_BYTES + 1);
-    big.set(new TextEncoder().encode("%PDF-"));
-    await expect(cvTextFromPdf(big)).rejects.toBeInstanceOf(CvTextError);
-    await expect(cvTextFromPdf(big)).rejects.toThrow(/dépasse 5 Mo/);
+  test("PDF sans couche texte (scan) : null, pour basculer en lecture native", async () => {
+    expect(await cvTextFromPdf(fixture("blank.pdf"))).toBeNull();
   });
 
   test("PDF corrompu", async () => {
     await expect(cvTextFromPdf(new TextEncoder().encode("%PDF-1.7 n'importe quoi"))).rejects.toThrow(/Impossible de lire ce PDF/);
+  });
+});
+
+describe("detectCvFileType : d'après les octets, pas l'extension", () => {
+  test("fixtures réelles", () => {
+    expect(detectCvFileType(fixture("cv-sample.pdf"))).toBe("pdf");
+    expect(detectCvFileType(fixture("cv-sample.png"))).toBe("png");
+  });
+
+  test("en-têtes JPEG, WebP, HEIC, inconnu", () => {
+    expect(detectCvFileType(bytes(0xff, 0xd8, 0xff, 0xe0))).toBe("jpeg");
+    expect(detectCvFileType(bytes("RIFF", 0, 0, 0, 0, "WEBPVP8 "))).toBe("webp");
+    expect(detectCvFileType(bytes(0, 0, 0, 24, "ftypheic"))).toBe("heic");
+    expect(detectCvFileType(bytes(0, 0, 0, 24, "ftypmif1"))).toBe("heic");
+    expect(detectCvFileType(bytes(0, 0, 0, 24, "ftypmp42"))).toBeNull(); // vidéo MP4
+    expect(detectCvFileType(bytes("PK", 3, 4))).toBeNull(); // .docx (zip)
+    expect(detectCvFileType(new Uint8Array())).toBeNull();
+  });
+});
+
+describe("préparation des images (navigateur)", () => {
+  test("fitWithin : grand côté ramené à 2 000 px, proportions gardées, jamais agrandi", () => {
+    expect(fitWithin(4032, 3024)).toEqual({ width: 2000, height: 1500 });
+    expect(fitWithin(3024, 4032)).toEqual({ width: 1500, height: 2000 });
+    expect(fitWithin(800, 600)).toEqual({ width: 800, height: 600 });
+  });
+
+  test("HEIC et images reconnus par type MIME ou extension", () => {
+    expect(isHeicFile({ name: "IMG_0001.HEIC", type: "" })).toBe(true);
+    expect(isHeicFile({ name: "cv", type: "image/heif" })).toBe(true);
+    expect(isImageFile({ name: "cv.JPG", type: "" })).toBe(true);
+    expect(isImageFile({ name: "cv.pdf", type: "application/pdf" })).toBe(false);
   });
 });
 

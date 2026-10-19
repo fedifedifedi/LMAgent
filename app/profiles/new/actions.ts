@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { CvTextError } from "@/lib/cv/extract-text";
+import { CvInputError } from "@/lib/cv/extract-text";
 import { importCv, type CvInput } from "@/lib/cv/import";
 import { LLMError, LLMValidationError } from "@/lib/llm";
 
@@ -12,7 +12,7 @@ export type ImportCvState = {
 };
 
 function userMessage(error: unknown): string {
-  if (error instanceof CvTextError) return error.message;
+  if (error instanceof CvInputError) return error.message;
   if (error instanceof LLMValidationError) {
     return "Le modèle n'a pas produit de profil exploitable après plusieurs tentatives. Réessaie, ou colle le texte du CV.";
   }
@@ -26,10 +26,10 @@ export async function importCvAction(_previous: ImportCvState, formData: FormDat
   const pasted = formData.get("text");
   let input: CvInput;
 
-  if (mode === "pdf") {
+  if (mode === "file") {
     const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) return { error: "Choisis un fichier PDF." };
-    input = { kind: "pdf", name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) };
+    if (!(file instanceof File) || file.size === 0) return { error: "Choisis un fichier : PDF, JPG, PNG ou WebP." };
+    input = { kind: "file", name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) };
   } else {
     if (typeof pasted !== "string" || !pasted.trim()) return { error: "Colle le texte de ton CV." };
     input = { kind: "text", text: pasted };
