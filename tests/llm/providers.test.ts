@@ -213,8 +213,8 @@ describe("provider gemini", () => {
     const { provider } = create([new ApiError({ message, status: 429 })]);
     const promise = generateObject({ ...base, provider });
 
-    await expect(promise).rejects.toMatchObject({ retryAfterSeconds: undefined });
-    await expect(promise).rejects.toThrow(/Quota quotidien Gemini épuisé/);
+    await expect(promise).rejects.toMatchObject({ retryAfterSeconds: undefined, daily: true });
+    await expect(promise).rejects.toThrow("Quota gratuit Gemini du jour épuisé. Il se recharge demain matin.");
   });
 
   test("autres erreurs API : propagées telles quelles", async () => {

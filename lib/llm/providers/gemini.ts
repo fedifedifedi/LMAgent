@@ -24,9 +24,9 @@ export function rateLimitError(error: ApiError): LLMRateLimitError {
   const seconds = parseRetryDelaySeconds(error.message);
   const daily = /per\s*day|PerDay/i.test(error.message);
   const message = daily
-    ? "Quota quotidien Gemini épuisé (niveau gratuit). Réessaie demain ou utilise une clé avec facturation."
+    ? "Quota gratuit Gemini du jour épuisé. Il se recharge demain matin."
     : `Limite de requêtes Gemini atteinte (niveau gratuit probable). Réessaie dans ${seconds ?? "quelques"} s.`;
-  return new LLMRateLimitError("gemini", daily ? undefined : seconds, message, { cause: error });
+  return new LLMRateLimitError("gemini", daily ? undefined : seconds, message, { cause: error, daily });
 }
 
 // thinkingLevel (Gemini 3). Les modèles Gemini 2.5 utilisent thinkingBudget et peuvent refuser ce champ.

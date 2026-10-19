@@ -154,6 +154,33 @@ describe("pipeline complet (mock)", () => {
     expect((await db.letter.findUniqueOrThrow({ where: { id: letterId } })).status).toBe("GENERATED");
   });
 
+  test("quota du jour épuisé : message exact sur la lettre, reprise possible", async () => {
+    const { runLetterStepAction } = await import("@/app/letters/actions");
+    const { DAILY_QUOTA_LETTER_MESSAGE } = await import("@/lib/llm/errors");
+    const letterId = await newLetter();
+    const daily: LLMProvider = {
+      ...createMockProvider(),
+      complete: async () => {
+        throw new LLMRateLimitError("gemini", undefined, "Quota gratuit Gemini du jour épuisé. Il se recharge demain matin.", { daily: true });
+      },
+    };
+    // L'action utilise le provider configuré : on remplace temporairement le mock par un provider en quota épuisé.
+    const llm = await import("@/lib/llm");
+    const original = llm.getProvider;
+    const { mock } = await import("bun:test");
+    mock.module("@/lib/llm", () => ({ ...llm, getProvider: () => daily }));
+    try {
+      const result = await runLetterStepAction(letterId);
+      expect("view" in result && result.error).toBe(DAILY_QUOTA_LETTER_MESSAGE);
+      expect(DAILY_QUOTA_LETTER_MESSAGE).toBe(
+        "Quota gratuit Gemini du jour épuisé. Il se recharge demain matin. Ta lettre est sauvegardée : clique sur Reprendre à ce moment-là.",
+      );
+      expect("view" in result && result.view.status).toBe("FAILED");
+    } finally {
+      mock.module("@/lib/llm", () => ({ ...llm, getProvider: original }));
+    }
+  });
+
   test("critique sans reproche et vérifications passées : pas de réécriture", async () => {
     const letterId = await newLetter();
     const fixtures = { ...MOCK_FIXTURES, letter_critique: { verdict: "ok", issues: [] } };

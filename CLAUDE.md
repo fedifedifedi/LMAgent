@@ -72,7 +72,9 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
   comme du Windows-1252 et corrompt les accents. Utiliser les outils d'édition de fichiers.
 - Lancer le projet avec : npm run dev
 - Tests : npm test (bun test, une base SQLite temporaire migrée, partagée par les fichiers de test).
-  Test réel du provider configuré : npm run llm:smoke (appels payants, n'affiche jamais la clé).
+  Test réel du provider configuré : npm run llm:smoke / npm run letter:smoke (n'affichent jamais la clé).
+  NE JAMAIS lancer un test réel (Gemini ou autre) sans demander d'abord à l'utilisateur : quota gratuit limité.
+  Vérifications : provider mock ($env:LLM_PROVIDER = "mock" pour le processus, sans toucher .env.local).
 - .env.local contient les clés API : ne jamais l'écraser, ne jamais le lire ni l'afficher. Variables : voir .env.example.
 - PDF : puppeteer-core (PAS puppeteer, pas de Chrome téléchargé) avec Edge local, chemin dans CHROME_PATH (.env.local) :
   C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe

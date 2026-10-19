@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { runNextStep } from "@/lib/letters/pipeline";
 import { getLetterView, type LetterView } from "@/lib/letters/view";
-import { LLMError, LLMRateLimitError, LLMValidationError } from "@/lib/llm";
+import { DAILY_QUOTA_LETTER_MESSAGE, LLMError, LLMRateLimitError, LLMValidationError } from "@/lib/llm";
 import { fetchOffer, OfferFetchError } from "@/lib/offer/fetch-offer";
 import { MAX_OFFER_CHARS, MIN_PASTED_OFFER_CHARS, normalizeText } from "@/lib/offer/text";
 
@@ -82,7 +82,7 @@ export async function runLetterStepAction(letterId: unknown): Promise<StepAction
     await runNextStep(id.data);
   } catch (e) {
     if (e instanceof LLMRateLimitError) {
-      error = e.message;
+      error = e.daily ? DAILY_QUOTA_LETTER_MESSAGE : e.message;
       retryAfterSeconds = e.retryAfterSeconds;
     } else if (e instanceof LLMValidationError) {
       error = "Le modèle n'a pas produit de réponse exploitable pour cette étape. Réessaie.";
