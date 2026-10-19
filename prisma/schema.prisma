@@ -1,0 +1,86 @@
+// Contraintes et index ajoutés en SQL brut dans les migrations (Prisma ne les modélise pas) :
+// - triggers document_owner_* : un Document appartient soit à un Profile, soit à une Letter (COMPANY_PAGE => Letter).
+// - table virtuelle chunk_fts (FTS5) + triggers chunk_* qui la synchronisent avec Chunk.
+// Une migration qui recrée Document ou Chunk (redéfinition de table SQLite) supprime ces triggers : les recréer.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Profile {
+  id        String     @id @default(cuid())
+  name      String
+  /// Profil validé par ProfileSchema (lib/schemas/profile.ts) à l'écriture et à la lecture.
+  data      Json
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  letters   Letter[]
+  documents Document[]
+}
+
+enum LetterStatus {
+  DRAFT
+  GENERATED
+  FINAL
+}
+
+model Letter {
+  id        String       @id @default(cuid())
+  profileId String
+  profile   Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  offerText String
+  offerUrl  String?
+  /// "fr" ou "en", déterminée par analyzeOffer.
+  language  String?
+  /// Sortie d'analyzeOffer.
+  analysis  Json?
+  /// Lettre structurée (sortie de writeLetter / critique).
+  content   Json?
+  status    LetterStatus @default(DRAFT)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  documents Document[]
+
+  @@index([profileId])
+}
+
+enum DocumentKind {
+  PROJECT
+  INTERNSHIP_REPORT
+  RECOMMENDATION
+  PAST_LETTER
+  COMPANY_PAGE
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  kind       DocumentKind
+  title      String
+  sourceName String?
+  content    String
+  profileId  String?
+  profile    Profile?     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  letterId   String?
+  letter     Letter?      @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+  chunks     Chunk[]
+
+  @@index([profileId])
+  @@index([letterId])
+}
+
+/// id entier = rowid SQLite, utilisé par chunk_fts (FTS5) et plus tard par vector_top_k (libSQL).
+model Chunk {
+  id         Int      @id @default(autoincrement())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  index      Int
+  text       String
+
+  @@unique([documentId, index])
+}

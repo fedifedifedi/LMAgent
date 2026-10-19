@@ -14,6 +14,15 @@ Next.js 16 (App Router), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/s
   & "$env:USERPROFILE\.bun\bin\bun.exe" add <paquet>
 - N'installer un paquet qu'à l'étape où il sert.
 - Lancer le projet avec : npm run dev
+- Tests : npm test (bun test, base SQLite temporaire avec les migrations appliquées).
+
+## Base de données (Prisma 7 + libSQL)
+- Prisma 7.10.1 (CLI, client et @prisma/adapter-libsql épinglés à la même version). Client généré dans lib/generated/prisma (gitignoré, `npm run db:generate`).
+- Adaptateur libSQL (better-sqlite3 impossible : pas de Visual Studio pour compiler). URL : DATABASE_URL, sinon file:./prisma/dev.db (lib/db-url.ts).
+- SQL brut dans les migrations : triggers document_owner_* et table FTS5 chunk_fts + triggers chunk_*.
+  Les tables FTS5 sont déclarées `tables.external` dans prisma.config.ts, sinon migrate dev veut les supprimer.
+  Une migration qui recrée Document ou Chunk supprime leurs triggers : les recréer dans la même migration.
+- `prisma migrate dev` refuse de tourner en non-interactif dès qu'il y a un avertissement : utiliser --create-only, relire le SQL, puis appliquer.
 - .env.local contient la clé API : ne jamais l'écraser.
 - PDF : puppeteer-core (PAS puppeteer, pas de Chrome téléchargé) avec Edge local, chemin dans CHROME_PATH (.env.local) :
   C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
@@ -30,8 +39,13 @@ choisie via LLM_PROVIDER dans .env.local. Le mock doit permettre de tout faire t
   anciennes lettres de motivation (type "style" : uniquement pour le ton, JAMAIS comme source de faits).
 - Pages de l'entreprise ciblée : rattachées à une Letter, pas au profil.
 - Recherche : SQLite FTS5, tokenizer `unicode61 remove_diacritics 2` (pas porter, documents FR et EN).
+- Requête FTS5 toujours échappée (buildFtsQuery dans lib/rag/search.ts) : chaque terme entre guillemets doubles, joints par OR.
+  search() accepte une chaîne ou une liste de termes (venant d'analyzeOffer). Par défaut, seuls les documents "fact" sont cherchés.
 - Architecture prévue pour une recherche hybride BM25 + embeddings (fusion RRF), activable avec une clé Gemini
   (FTS5 seul ne relie pas une offre en anglais à des documents en français).
+- Embeddings : recherche vectorielle native de libSQL (colonne F32_BLOB(dim) sur Chunk + index vectoriel, requête vector_top_k),
+  ajoutée en SQL brut dans une migration quand le modèle d'embeddings (donc la dimension) sera choisi. Pas de champ embedding Bytes.
+  vector_top_k renvoie le rowid : c'est pourquoi Chunk.id est un entier.
 
 ## Pipeline de l'agent (lib/agent/)
 analyzeOffer → matchProfile (+ RAG) → writeLetter → critique (puis réécriture) → rendu template.

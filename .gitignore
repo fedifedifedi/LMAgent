@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# prisma
+/lib/generated/
+/prisma/*.db
+/prisma/*.db-journal
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
