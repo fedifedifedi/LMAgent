@@ -17,6 +17,8 @@ Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5
   chemin avec sa fixture.
 - **6. Formulaire du profil** : vérification et correction du brouillon, validation par ProfileSchema, enregistrement (Profile,
   CvImport.profileId). Dates à l'année signalées ; summary écrit par l'utilisateur (éventuel bouton « Proposer un résumé » à relire).
+  Champs vides importants signalés : disponibilité (durée, mobilité), compétences vides, réalisations vides.
+  Bouton pour fusionner un projet dans une expérience (le modèle a déjà dupliqué des stages en expérience ET en projet).
   Liste des profils.
 - **7. Génération de lettres (pipeline + UI)** : choisir un profil validé, coller le texte de l'offre ou son lien.
   Lien : texte de la page récupéré côté serveur ; en cas d'échec (LinkedIn, Indeed et d'autres bloquent souvent), message clair
@@ -28,9 +30,17 @@ Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5
   puis recherche hybride avec embeddings Gemini (fusion RRF).
 - Plus tard : authentification.
 
+## Design et animations
+- GSAP (+ @gsap/react, hook useGSAP), Lenis (défilement doux), composants React Bits (copiés dans le projet).
+- Animations marquées sur la page d'accueil seulement ; discrètes dans les pages de travail (import du CV, formulaire, génération).
+  Génération : animation des étapes de l'agent, apparition progressive de la lettre.
+- Lenis désactivé (data-lenis-prevent) sur les zones qui défilent : textarea, aperçu de la lettre, listes.
+- Respecter prefers-reduced-motion (animations coupées ou réduites, Lenis désactivé).
+- Pas de composants React Bits en WebGL (three.js, ogl) : seulement texte, cartes, boutons, fonds légers en CSS/SVG.
+
 ## Stack
 Next.js 16 (App Router, Cache Components), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/sdk, @google/genai, Zod,
-Prisma + libSQL (SQLite), unpdf, puppeteer-core (PDF).
+Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF).
 
 ## Environnement (important)
 - Windows + PowerShell.

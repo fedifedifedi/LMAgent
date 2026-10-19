@@ -12,6 +12,7 @@ Rules:
 - summary: only if the CV contains its own summary, profile or tagline section; copy it. Otherwise leave summary out. Do not summarize the CV yourself.
 - availability: only what the CV states (contract sought, duration, start date, mobility, remote work). Leave out anything not written.
 - Language levels: use a CEFR level or "native" only when the CV states it or uses an unambiguous equivalent ("langue maternelle" = native, "bilingue" = C2). Otherwise leave the level out.
+- experiences vs projects: an internship, apprenticeship, job, freelance mission or any position held in an organization goes in experiences ONLY, with its own achievements and skills (including the technologies the CV lists for it, even in a separate "projects" or "missions" block under that position). projects is only for personal, academic or open-source projects not tied to a position. Never list the same work in both.
 - achievements: one entry per bullet or concrete result, wording preserved. skills: technologies or skills explicitly linked to that experience or project.
 - skills (global list): group the skills listed in the CV by category, using the CV's own categories when it has them.
 - ids: unique kebab-case identifiers derived from the content, e.g. exp-acme-2023, proj-chatbot, edu-insa.`;

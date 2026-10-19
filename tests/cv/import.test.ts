@@ -30,6 +30,7 @@ describe("extractProfile (via importCv)", () => {
     expect(requests[0].system).toBe(EXTRACT_PROFILE_SYSTEM);
     expect(EXTRACT_PROFILE_SYSTEM).toContain("Never add a month");
     expect(EXTRACT_PROFILE_SYSTEM).toContain("Do not summarize the CV yourself");
+    expect(EXTRACT_PROFILE_SYSTEM).toContain("Never list the same work in both");
     expect(requests[0].turns[0].text).toContain("Banque Atlantique");
   });
 });
