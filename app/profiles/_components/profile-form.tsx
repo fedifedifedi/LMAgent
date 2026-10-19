@@ -13,7 +13,7 @@ import {
   type FieldErrors,
   type Resolver,
 } from "react-hook-form";
-import { saveProfileAction, type SaveProfileResult } from "@/app/profiles/actions";
+import { saveProfileAction, suggestSummaryAction, type SaveProfileResult } from "@/app/profiles/actions";
 import { ChipsInput, Field, fieldId, LinesInput, selectClassName } from "@/app/profiles/_components/fields";
 import { Reveal } from "@/components/motion/reveal";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
@@ -159,7 +159,7 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
         )}
 
         <Reveal className="flex flex-col gap-6">
-          <IdentitySection />
+          <IdentitySection profileId={"profileId" in target ? target.profileId : undefined} />
           <AvailabilitySection />
           <ExperiencesSection />
           <ProjectsSection />
@@ -418,10 +418,25 @@ function takenIds(values: ProfileFormValues) {
   return new Set([...values.experiences, ...(values.projects ?? []), ...values.education].map((item) => item.id));
 }
 
-function IdentitySection() {
-  const { register } = useFormContext<ProfileFormValues>();
+function IdentitySection({ profileId }: { profileId?: string }) {
+  const { register, getValues, setValue } = useFormContext<ProfileFormValues>();
   const summary = useWatch<ProfileFormValues, "summary">({ name: "summary" });
   const error = useFieldError("summary");
+  const [suggesting, startSuggest] = useTransition();
+  const [suggestion, setSuggestion] = useState<{ ok: boolean; message: string } | null>(null);
+
+  function suggest() {
+    setSuggestion(null);
+    startSuggest(async () => {
+      const result = await suggestSummaryAction(getValues(), profileId);
+      if ("error" in result) {
+        setSuggestion({ ok: false, message: result.error });
+        return;
+      }
+      setValue("summary", result.summary, { shouldDirty: true, shouldValidate: true });
+      setSuggestion({ ok: true, message: "Proposition du modèle : relis-la et corrige-la avant d'enregistrer." });
+    });
+  }
   return (
     <Section title="Identité et contact" description="Ce qui apparaîtra en tête de chaque lettre.">
       <div className={grid}>
@@ -443,6 +458,16 @@ function IdentitySection() {
       >
         <Textarea id={fieldId("summary")} rows={4} aria-invalid={error ? true : undefined} data-lenis-prevent {...register("summary")} />
       </Field>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" variant="outline" size="sm" disabled={suggesting} onClick={suggest}>
+          {suggesting ? "Rédaction…" : summary?.trim() ? "Proposer un autre résumé" : "Proposer un résumé"}
+        </Button>
+        {suggestion && (
+          <span role="status" className={`text-sm ${suggestion.ok ? "text-warning" : "text-destructive"}`}>
+            {suggestion.message}
+          </span>
+        )}
+      </div>
     </Section>
   );
 }

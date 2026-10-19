@@ -5,15 +5,17 @@ import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { DeleteProfile } from "@/app/profiles/_components/delete-profile";
 import { SavedNotice } from "@/app/profiles/_components/saved-notice";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { db } from "@/lib/db";
+import { listProfileLetters } from "@/lib/letters/view";
 import { profileCompleteness, profileTimeline, skillUsage, type TimelineEntry } from "@/lib/profile/completeness";
 import { CONTRACT_TYPE_LABELS, EXPERIENCE_TYPE_LABELS, LANGUAGE_LEVEL_LABELS, periodLabel } from "@/lib/profile/labels";
 import { getProfile } from "@/lib/repositories/profiles";
 import { normalizeSkill, type Profile } from "@/lib/schemas/profile";
 
 export const metadata: Metadata = { title: "Profil · LMAgent" };
+
+const LETTER_STATUS = { DRAFT: "en cours", GENERATED: "prête", FAILED: "interrompue", FINAL: "prête" } as const;
 
 export default function ProfilePage({ params, searchParams }: PageProps<"/profiles/[id]">) {
   return (
@@ -42,7 +44,8 @@ async function ProfileView({ params, searchParams }: Pick<PageProps<"/profiles/[
   await io();
   const profile = await getProfile(id);
   if (!profile) notFound();
-  const letters = await db.letter.count({ where: { profileId: id } });
+  const letterList = await listProfileLetters(id);
+  const letters = letterList.length;
   const p = profile.data;
 
   return (
@@ -62,11 +65,28 @@ async function ProfileView({ params, searchParams }: Pick<PageProps<"/profiles/[
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3">
-        <Button type="button" disabled>
-          Générer une lettre avec ce profil
-        </Button>
-        <span className="text-sm text-muted-foreground">Disponible à la prochaine étape du projet.</span>
+      <div className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/letters/new?profile=${id}`} className={buttonVariants()}>
+            Générer une lettre avec ce profil
+          </Link>
+          <span className="text-sm text-muted-foreground">Colle une offre : la lettre ne citera que ce profil.</span>
+        </div>
+        {letterList.length > 0 && (
+          <ul className="flex flex-col divide-y border-t text-sm">
+            {letterList.map((letter) => (
+              <li key={letter.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <Link href={`/letters/${letter.id}`} className="font-medium underline-offset-2 hover:underline">
+                  {letter.title}
+                  {letter.company ? ` — ${letter.company}` : ""}
+                </Link>
+                <span className="text-muted-foreground">
+                  {LETTER_STATUS[letter.status]} · {letter.createdAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">

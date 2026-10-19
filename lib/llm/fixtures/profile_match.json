@@ -1,0 +1,14 @@
+{
+  "requirements": [
+    { "name": "React", "status": "matched", "evidence": "Refonte du tableau de bord client en React", "sourceIds": ["{{source:0}}"] },
+    { "name": "TypeScript", "status": "matched", "evidence": "TypeScript utilisé pendant le stage", "sourceIds": ["{{source:0}}", "{{source:5}}"] },
+    { "name": "Tests end-to-end", "status": "matched", "evidence": "Mise en place de tests end-to-end sur le parcours de commande", "sourceIds": ["{{source:0}}"] },
+    { "name": "Docker", "status": "missing", "evidence": "", "sourceIds": [] },
+    { "name": "Anglais technique", "status": "partial", "evidence": "Anglais C1", "sourceIds": ["{{source:6}}"] }
+  ],
+  "arguments": [
+    { "point": "Refonte d'un tableau de bord client en React avec un temps de chargement divisé par deux", "sourceIds": ["{{source:0}}"] },
+    { "point": "Tests de bout en bout déjà mis en place sur un parcours de commande", "sourceIds": ["{{source:0}}"] },
+    { "point": "Disponible pour un stage de six mois à partir de février 2027", "sourceIds": ["{{source:4}}"] }
+  ]
+}

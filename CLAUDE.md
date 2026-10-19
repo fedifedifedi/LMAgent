@@ -13,7 +13,9 @@ lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de le
 
 · 6. Formulaire du profil (vérification, avertissements, fusion projet → expérience, enregistrement lié à l'import, liste,
 fiche, édition, suppression) et socle du design (jetons clair / sombre, polices, Lenis, apparitions CSS)
-· 6b. Logo, accueil simple (3 étapes, « Commencer »), fiche du profil (complétude, parcours, compétences et leur usage).
+· 6b. Logo, accueil simple (3 étapes, « Commencer »), fiche du profil (complétude, parcours, compétences et leur usage)
+· 7. Génération de lettres : offre collée ou lien (lecture serveur, repli sur le collage), pipeline reprenable, page de la
+lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall, « Proposer un résumé ».
 
 À faire, dans cet ordre (proposer le plan détaillé avant chaque étape) :
 - **7. Génération de lettres (pipeline + UI)** : choisir un profil validé, coller le texte de l'offre ou son lien.
@@ -116,9 +118,25 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
 - Gemini : @google/genai, responseJsonSchema filtré par sanitizeForGemini (pas de pattern : décrire les formats avec .describe()).
   Les 429 ne sont pas retentés par le SDK : LLMRateLimitError avec message clair et délai (retryDelay).
 
-## Pipeline de l'agent (lib/agent/)
-analyzeOffer → matchProfile (profil ; + RAG à l'étape 9) → writeLetter → critique (puis réécriture) → rendu template.
-Chaque étape = une fonction, sortie validée par un schéma Zod. Chaque argument de la lettre cite sa source (id du profil, puis chunk RAG).
+## Pipeline de l'agent (lib/agent/, lib/letters/)
+analyzeOffer (reasoning low) → matchProfile (medium) → writeLetter (high) → critique (high) → au plus UNE réécriture (high).
+Chaque étape = une fonction (lib/agent/letter-agent.ts), sortie validée par un schéma Zod (lib/agent/schemas.ts).
+- Sources : catalogue du profil (lib/agent/sources.ts : ids des expériences, projets, formations + profile-summary,
+  profile-availability, profile-skills, profile-languages, avec libellés lisibles). Les schémas de matchProfile et writeLetter
+  sont construits par profil avec un z.enum de ces ids : le modèle ne peut pas citer une source inexistante.
+- Lettre : 250 à 350 mots dans les paragraphes, une phrase = { text, sourceIds } (vide si aucun fait sur le candidat).
+  En-tête (nom, coordonnées, destinataire, lieu et date) construit par le code (lib/letters/view.ts), jamais par le modèle.
+  Contact nommé dans l'offre : la lettre s'adresse à lui (civilité seulement si écrite, sinon « Bonjour Prénom Nom, » /
+  « Dear Firstname Lastname, »). Conventions anglaises pour les offres en anglais.
+- Vérifications du code (lib/agent/letter-checks.ts) en plus de la critique : longueur, langue, compétence absente revendiquée,
+  contact ignoré. Problèmes restants après la réécriture : Letter.checks, affichés « Points à vérifier ».
+- Exécution : une étape par appel de Server Action (runLetterStepAction), l'étape suivante se déduit des champs remplis
+  (lib/letters/pipeline.ts) ; échec (ex. 429) → status FAILED + error, bouton « Reprendre » qui repart de l'étape en échec.
+  Chaque appel → une ligne LlmCall (succès ou échec), affichée dans « Détails de la génération ».
+- Offre par lien : lib/offer/fetch-offer.ts (JSON-LD JobPosting puis Readability + linkedom ; SSRF : adresses privées
+  refusées aussi après redirection, ports 80/443, 10 s, 2 Mo). Échec → message et bascule sur « Coller le texte ».
+- Mock : fixtures offer_analysis, profile_match, letter_draft, letter_critique, profile_summary ; "{{source:N}}" remplacé par
+  le N-ième id autorisé du schéma reçu (marche avec n'importe quel profil). Test réel : npm run letter:smoke.
 
 ## RAG (étape 9)
 - Documents rattachés à un profil : descriptions de projets/README, rapports de stage, lettres de recommandation (sources de faits),

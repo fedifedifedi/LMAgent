@@ -1,0 +1,27 @@
+{
+  "language": "fr",
+  "jobTitle": "Stage de fin d'études — Développeur·se full-stack",
+  "company": "Ateliers Nova",
+  "location": "Lyon (hybride)",
+  "contractType": "Stage de fin d'études",
+  "duration": "6 mois",
+  "startDate": "Février 2027",
+  "contact": { "name": "Sarah Lemoine", "role": "Responsable technique" },
+  "missions": [
+    "Développer de nouvelles fonctionnalités de la plateforme de réservation en React et TypeScript",
+    "Écrire des tests de bout en bout sur les parcours critiques",
+    "Participer aux revues de code et à l'amélioration continue"
+  ],
+  "requirements": [
+    { "name": "React", "kind": "hard", "importance": "required" },
+    { "name": "TypeScript", "kind": "hard", "importance": "required" },
+    { "name": "Tests end-to-end", "kind": "hard", "importance": "preferred" },
+    { "name": "Docker", "kind": "hard", "importance": "required" },
+    { "name": "Anglais technique", "kind": "language", "importance": "preferred" }
+  ],
+  "companyFacts": [
+    "Ateliers Nova édite une plateforme de réservation pour les ateliers d'artisans",
+    "L'équipe technique compte une quinzaine de personnes à Lyon"
+  ],
+  "keywords": ["React", "TypeScript", "tests", "plateforme de réservation", "full-stack"]
+}

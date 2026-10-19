@@ -41,6 +41,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/profiles/new" className="font-medium hover:underline">
                 Importer un CV
               </Link>
+              <Link href="/letters/new" className="font-medium hover:underline">
+                Nouvelle lettre
+              </Link>
               <ThemeToggle />
             </nav>
           </div>

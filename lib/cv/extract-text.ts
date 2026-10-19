@@ -1,4 +1,5 @@
 import { extractText, getDocumentProxy } from "unpdf";
+import { normalizeText } from "@/lib/offer/text";
 
 export const MAX_PDF_BYTES = 5 * 1024 * 1024;
 /** Images déjà redimensionnées dans le navigateur (2 000 px, JPEG) : bien en dessous en pratique. */
@@ -17,16 +18,7 @@ export class CvInputError extends Error {
 }
 
 /** Espaces et lignes vides normalisés, sans toucher au contenu. */
-export function normalizeCvText(text: string): string {
-  return text
-    .replace(/\r\n?/g, "\n")
-    .replace(/[\t\f\v ]+/g, " ")
-    .split("\n")
-    .map((line) => line.replace(/ {2,}/g, " ").trim())
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+export const normalizeCvText = normalizeText;
 
 const meaningfulLength = (text: string) => text.replace(/\s/g, "").length;
 

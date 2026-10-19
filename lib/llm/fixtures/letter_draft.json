@@ -1,0 +1,34 @@
+{
+  "language": "fr",
+  "subject": "Candidature au stage de fin d'études de développeuse full-stack",
+  "salutation": "Bonjour Sarah Lemoine,",
+  "paragraphs": [
+    {
+      "sentences": [
+        { "text": "Votre offre de stage de fin d'études chez Ateliers Nova a retenu toute mon attention, car elle porte sur une plateforme de réservation utilisée chaque jour par des artisans.", "sourceIds": [] },
+        { "text": "Développer des fonctionnalités en React et TypeScript, puis les fiabiliser par des tests de bout en bout, correspond précisément à ce que j'ai pratiqué pendant mon dernier stage.", "sourceIds": ["{{source:0}}"] }
+      ]
+    },
+    {
+      "sentences": [
+        { "text": "Chez Acme Logiciels, j'ai mené la refonte du tableau de bord client en React, ce qui a permis de diviser par deux son temps de chargement.", "sourceIds": ["{{source:0}}"] },
+        { "text": "J'ai travaillé sur ce projet en TypeScript, en découpant l'interface en composants réutilisables et en échangeant régulièrement avec l'équipe produit sur les priorités.", "sourceIds": ["{{source:0}}"] },
+        { "text": "Cette expérience m'a appris à concilier rapidité de livraison et qualité du code, deux exigences que je retrouve dans la description de vos missions.", "sourceIds": [] }
+      ]
+    },
+    {
+      "sentences": [
+        { "text": "J'ai également mis en place des tests de bout en bout sur le parcours de commande, afin de détecter les régressions avant chaque mise en production.", "sourceIds": ["{{source:0}}"] },
+        { "text": "Participer à vos revues de code et à l'amélioration continue de la plateforme serait pour moi l'occasion de prolonger cette démarche au sein d'une équipe d'une quinzaine de personnes.", "sourceIds": [] },
+        { "text": "Mon niveau d'anglais me permet par ailleurs de lire et de rédiger sans difficulté la documentation technique.", "sourceIds": ["{{source:6}}"] }
+      ]
+    },
+    {
+      "sentences": [
+        { "text": "Le projet d'Ateliers Nova, qui met le numérique au service des ateliers d'artisans, donne un sens concret au travail quotidien de développement, et c'est ce qui me motive le plus dans votre offre.", "sourceIds": [] },
+        { "text": "Je suis disponible pour un stage de six mois à partir de février 2027 et je serais heureuse de vous présenter plus en détail mon parcours lors d'un entretien.", "sourceIds": ["{{source:4}}"] }
+      ]
+    }
+  ],
+  "closing": "Je vous prie d'agréer, Madame, l'expression de mes salutations distinguées."
+}

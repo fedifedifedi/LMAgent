@@ -60,9 +60,12 @@ model CvImport {
   @@index([profileId])
 }
 
+/// DRAFT : pipeline en cours (l'étape suivante se déduit des champs remplis). FAILED : erreur (error), reprenable.
+/// FINAL est conservé pour compatibilité (non utilisé).
 enum LetterStatus {
   DRAFT
   GENERATED
+  FAILED
   FINAL
 }
 
@@ -74,16 +77,59 @@ model Letter {
   offerUrl  String?
   /// "fr" ou "en", déterminée par analyzeOffer.
   language  String?
-  /// Sortie d'analyzeOffer.
+  /// Sortie d'analyzeOffer (OfferAnalysisSchema).
   analysis  Json?
-  /// Lettre structurée (sortie de writeLetter / critique).
+  /// Sortie de matchProfile.
+  match     Json?
+  /// Première version de writeLetter.
+  draft     Json?
+  /// Sortie de critique (avis du modèle).
+  critique  Json?
+  /// Lettre finale (brouillon validé, ou réécriture).
   content   Json?
+  /// Problèmes détectés par le code (longueur, compétences absentes revendiquées...) restant sur la lettre finale.
+  checks    Json?
   status    LetterStatus @default(DRAFT)
+  /// Dernière erreur (étape en échec), effacée à la reprise.
+  error     String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   documents Document[]
+  llmCalls  LlmCall[]
 
   @@index([profileId])
+}
+
+enum LlmStep {
+  ANALYZE_OFFER
+  MATCH_PROFILE
+  WRITE_LETTER
+  CRITIQUE
+  REWRITE
+  PROFILE_SUMMARY
+}
+
+/// Un appel generateObject (toutes tentatives cumulées) : suivi des tokens par lettre et par étape.
+model LlmCall {
+  id              String   @id @default(cuid())
+  letterId        String?
+  letter          Letter?  @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  /// Pour les appels hors lettre (résumé du profil).
+  profileId       String?
+  step            LlmStep
+  provider        String
+  model           String
+  inputTokens     Int
+  outputTokens    Int
+  cacheReadTokens Int?
+  attempts        Int
+  durationMs      Int
+  estimated       Boolean  @default(false)
+  success         Boolean
+  error           String?
+  createdAt       DateTime @default(now())
+
+  @@index([letterId])
 }
 
 enum DocumentKind {
