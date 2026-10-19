@@ -31,6 +31,7 @@
     "linkedom": "0.18.13",
     "lucide-react": "^1.59.0",
     "next": "16.4.2",
+    "pdf-lib": "1.17.1",
     "puppeteer-core": "25.12.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

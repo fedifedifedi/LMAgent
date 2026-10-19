@@ -26,7 +26,13 @@ describe.skipIf(!hasEdge)("renderPdf (Edge)", () => {
     const { pdf, scale, overflow } = await renderPdf(`http://localhost:${server!.port}/?n=5`, 10 / 11);
     const document = await getDocumentProxy(pdf);
     expect({ pages: document.numPages, scale, overflow }).toEqual({ pages: 1, scale: 1, overflow: false });
-    expect((await getMeta(document)).info.Title).toBe("Candidature au stage");
+    const { info } = await getMeta(document);
+    expect(info.Title).toBe("Candidature au stage");
+    // Ni l'outil ni le navigateur dans les métadonnées ou le fichier brut.
+    expect(info.Creator ?? "").toBe("");
+    expect(info.Producer ?? "").toBe("");
+    const raw = new TextDecoder("latin1").decode(pdf);
+    for (const trace of ["HeadlessChrome", "Skia", "Edg/", "LMAgent", "pdf-lib"]) expect(raw).not.toContain(trace);
     expect((await extractText(document, { mergePages: true })).text).toContain("Paragraphe 5");
   }, 60_000);
 

@@ -25,9 +25,9 @@ lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall
   demandant de coller le texte. Montrer à l'utilisateur ce qui a été extrait de l'offre (poste, entreprise, compétences demandées)
   avant ou pendant la génération. Pipeline sur le profil seul (RAG à l'étape 9). Persistance Letter + table LlmCall (tokens par appel).
   Bouton « Proposer un résumé » (rédigé par le modèle à partir du profil, relu par l'utilisateur) dans le formulaire du profil.
-- **8. Design et export PDF** (en cours) : fait — 3 templates (Classique, Moderne, Compact ; référence
-  https://claude.ai/artifact/CBUj8Zqo38vCjGKP4XRCp1), export PDF, réduction automatique, « Modifier le texte », accueil animé.
-  Reste : template par défaut selon le choix de l'utilisateur (Classique en attendant).
+- **8. Design et export PDF** : fait — 3 templates (Moderne par défaut, Classique et Compact au choix sur chaque lettre ;
+  référence https://claude.ai/artifact/CBUj8Zqo38vCjGKP4XRCp1), export PDF, réduction automatique, « Modifier le texte »,
+  accueil animé. Test complet dans le navigateur avec Gemini et une vraie offre : fait par l'utilisateur (retour attendu).
 - **Plus tard** : bouton « Raccourcir la lettre » (réécriture par le modèle quand la lettre dépasse une page même à 10 pt).
 - **9. RAG sur documents** : téléversement des documents du profil, découpage, recherche FTS5 branchée sur matchProfile,
   puis recherche hybride avec embeddings Gemini (fusion RRF).
@@ -160,7 +160,8 @@ Chaque étape = une fonction (lib/agent/letter-agent.ts), sortie validée par un
 - PDF : route GET /letters/[id]/pdf → lib/pdf/render.ts (puppeteer-core, Edge via CHROME_PATH, instance réutilisée)
   qui imprime /letters/[id]/print (feuille seule, média print, thème clair forcé). Réduction du texte par pas de 2 %
   jusqu'à 10 pt, puis export quand même avec avertissement (x-letter-overflow). AUCUN logo ni mention de LMAgent dans
-  le PDF ; titre du PDF = objet de la lettre (title.absolute). Limite : le champ Creator du PDF dit « HeadlessChrome ».
+  le PDF ; titre du PDF = objet de la lettre (title.absolute). Métadonnées neutralisées par pdf-lib 1.17.1
+  (lib/pdf/metadata.ts : Creator et Producer vides, XMP retiré) : aucune trace de HeadlessChrome, Skia ni LMAgent.
 
 ## RAG (étape 9)
 - Documents rattachés à un profil : descriptions de projets/README, rapports de stage, lettres de recommandation (sources de faits),

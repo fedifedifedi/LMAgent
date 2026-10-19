@@ -1,6 +1,7 @@
 import "server-only";
 import { existsSync } from "node:fs";
 import puppeteer, { type Browser } from "puppeteer-core";
+import { neutralizePdfMetadata } from "@/lib/pdf/metadata";
 
 /** Erreur à afficher telle quelle (configuration d'Edge, rendu impossible). */
 export class PdfError extends Error {
@@ -75,7 +76,9 @@ export async function renderPdf(url: string, minScale: number): Promise<Rendered
       overflow = await overflows();
     }
 
-    const pdf = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } });
+    const printed = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } });
+    // Pas de trace de l'outil ni du navigateur dans les métadonnées (Creator, Producer, XMP).
+    const pdf = await neutralizePdfMetadata(printed, await page.title());
     return { pdf, scale, overflow };
   } finally {
     await page.close().catch(() => {});

@@ -90,7 +90,7 @@ model Letter {
   /// Version produite par l'agent, avant retouches (pour « Revenir à la version générée »).
   generated Json?
   /// Template de mise en page (lib/letters/templates.ts) : classique, moderne ou compact.
-  template  String       @default("classique")
+  template  String       @default("moderne")
   /// Problèmes détectés par le code (longueur, compétences absentes revendiquées...) restant sur la lettre finale.
   checks    Json?
   status    LetterStatus @default(DRAFT)

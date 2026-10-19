@@ -108,6 +108,7 @@ describe("pipeline complet (mock)", () => {
     const view = await getLetterView(letterId);
     expect(view?.status).toBe("GENERATED");
     expect(view?.next).toBeNull();
+    expect(view?.template).toBe("moderne"); // template par défaut
     expect(requests.map((r) => [r.name, r.reasoning])).toEqual([
       ["offer_analysis", "low"],
       ["profile_match", "medium"],
