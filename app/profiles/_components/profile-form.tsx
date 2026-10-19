@@ -33,6 +33,7 @@ import {
   projectLabel,
 } from "@/lib/profile/labels";
 import { mergeProjectIntoExperience } from "@/lib/profile/merge";
+import { findSkillDuplicates, mergeSkills, type SkillDuplicate } from "@/lib/profile/skill-duplicates";
 import { profileWarnings } from "@/lib/profile/warnings";
 import { CONTRACT_TYPES, EXPERIENCE_TYPES, LANGUAGE_LEVELS, ProfileSchema, type Profile } from "@/lib/schemas/profile";
 
@@ -75,7 +76,19 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
   const localDraft = useLocalDraft(storageKey, form);
 
   const values = useWatch({ control: form.control }) as ProfileFormValues;
-  const warnings = useMemo(() => profileWarnings(values), [values]);
+  // Quasi-doublons de compétences que l'utilisateur a déclarés distincts (« Ce n'est pas un doublon »).
+  const [notDuplicates, setNotDuplicates] = useState<string[]>([]);
+  const duplicates = useMemo(
+    () => findSkillDuplicates(values).filter((d) => !notDuplicates.includes(duplicateKey(d))),
+    [values, notDuplicates],
+  );
+  const warnings = useMemo(
+    () => [
+      ...profileWarnings(values),
+      ...duplicates.map((d) => ({ field: "skills", message: `Compétences en double ? « ${d.short} » et « ${d.long} ».` })),
+    ],
+    [values, duplicates],
+  );
   const errors = collectErrors(form.formState.errors);
 
   const goTo = (path: string) => goToField(path, reduced);
@@ -164,7 +177,11 @@ export function ProfileForm({ defaultValues, target }: { defaultValues: ProfileF
           <ExperiencesSection />
           <ProjectsSection />
           <EducationSection />
-          <SkillsSection addedSkills={addedSkills} />
+          <SkillsSection
+            addedSkills={addedSkills}
+            duplicates={duplicates}
+            onNotDuplicate={(d) => setNotDuplicates((current) => [...current, duplicateKey(d)])}
+          />
           <LanguagesSection />
         </Reveal>
 
@@ -727,9 +744,25 @@ function EducationSection() {
   );
 }
 
-function SkillsSection({ addedSkills }: { addedSkills: string[] }) {
-  const { control } = useFormContext<ProfileFormValues>();
+const duplicateKey = (d: SkillDuplicate) => `${d.short}\u0000${d.long}`;
+
+function SkillsSection({
+  addedSkills,
+  duplicates,
+  onNotDuplicate,
+}: {
+  addedSkills: string[];
+  duplicates: SkillDuplicate[];
+  onNotDuplicate: (duplicate: SkillDuplicate) => void;
+}) {
+  const { control, getValues, reset } = useFormContext<ProfileFormValues>();
   const { fields, append, remove, move } = useFieldArray({ control, name: "skills", keyName: "key" });
+
+  /** Garde `keep` et remplace l'autre forme partout (groupes, expériences, projets). */
+  function merge(duplicate: SkillDuplicate, keep: string) {
+    const drop = keep === duplicate.short ? duplicate.long : duplicate.short;
+    reset(mergeSkills(getValues(), drop, keep), { keepDefaultValues: true, keepErrors: false });
+  }
   return (
     <Section
       title="Compétences"
@@ -744,6 +777,34 @@ function SkillsSection({ addedSkills }: { addedSkills: string[] }) {
       {addedSkills.length > 0 && (
         <Alert>
           <AlertDescription>Ajoutées à « Autres compétences » car citées dans une expérience ou un projet : {addedSkills.join(", ")}.</AlertDescription>
+        </Alert>
+      )}
+      {duplicates.length > 0 && (
+        <Alert>
+          <AlertTitle>Compétences en double ?</AlertTitle>
+          <AlertDescription>
+            <p>Ces compétences semblent désigner la même chose. Choisis la forme à garder : l&apos;autre est remplacée partout (groupes, expériences, projets).</p>
+            <ul className="mt-3 flex flex-col gap-3">
+              {duplicates.map((d) => (
+                <li key={duplicateKey(d)} className="flex flex-col gap-2 rounded-md border bg-card p-3">
+                  <span>
+                    « {d.short} » et « {d.long} »
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => merge(d, d.short)}>
+                      Garder « {d.short} »
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => merge(d, d.long)}>
+                      Garder « {d.long} »
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => onNotDuplicate(d)}>
+                      Ce n&apos;est pas un doublon
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </AlertDescription>
         </Alert>
       )}
       {fields.map((field, i) => (

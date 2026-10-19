@@ -34,6 +34,7 @@ export async function analyzeOffer(offerText: string, options: CallOptions = {})
     system: ANALYZE_OFFER_SYSTEM,
     prompt: `Job offer:\n\n${offerText}`,
     reasoning: "low",
+    tier: "fast",
     ...options,
   });
   return data;
@@ -55,6 +56,7 @@ export async function matchProfile(analysis: OfferAnalysis, profile: Profile, op
     system: MATCH_PROFILE_SYSTEM,
     prompt: `Offer analysis:\n${json(analysis)}\n\nCandidate profile:\n${json(profileForPrompt(profile, catalog))}`,
     reasoning: "medium",
+    tier: "fast",
     ...options,
   });
   return data;

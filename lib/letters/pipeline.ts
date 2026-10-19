@@ -19,7 +19,9 @@ const LLM_STEP: Record<LetterStep, LlmStep> = {
   rewrite: "REWRITE",
 };
 
-type LetterState = { analysis: unknown; match: unknown; draft: unknown; critique: unknown; content: unknown };
+const FAST_STEPS = new Set<LetterStep>(["analyze", "match"]);
+
+type LetterState ={ analysis: unknown; match: unknown; draft: unknown; critique: unknown; content: unknown };
 
 /** Étape suivante, déduite des résultats déjà enregistrés (le pipeline reprend là où il s'est arrêté). */
 export function nextStep(letter: LetterState): LetterStep | null {
@@ -78,7 +80,8 @@ export async function runNextStep(letterId: string, options: { provider?: LLMPro
   const step = nextStep(letter);
   if (!step) return null;
 
-  const provider = options.provider ?? getProvider();
+  // Analyse et correspondance sur LLM_MODEL_FAST (s'il est défini) ; rédaction, critique et réécriture sur LLM_MODEL.
+  const provider = options.provider ?? getProvider(process.env, FAST_STEPS.has(step) ? "fast" : "default");
   const profile: Profile = ProfileSchema.parse(letter.profile.data);
   const analysis = letter.analysis ? OfferAnalysisSchema.parse(letter.analysis) : undefined;
   const match = letter.match as ProfileMatch | null;

@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { useEffect, useRef, useState } from "react";
 import { runLetterStepAction } from "@/app/letters/actions";
+import { DeleteLetter } from "@/app/letters/_components/delete-letter";
 import { LetterSheet } from "@/components/letter/letter-sheet";
 import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -146,9 +147,13 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
 
   return (
     <>
-    <header className="-mt-4 flex flex-col gap-1">
-      <h1 className="font-heading text-4xl">{analysis?.jobTitle ?? "Nouvelle lettre"}</h1>
-      {analysis?.company && <p className="text-muted-foreground">{analysis.company}</p>}
+    <header className="-mt-4 flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <h1 className="font-heading text-4xl">{analysis?.jobTitle ?? "Nouvelle lettre"}</h1>
+        {analysis?.company && <p className="text-muted-foreground">{analysis.company}</p>}
+      </div>
+      {/* Pas de suppression pendant qu'une étape tourne : elle écrirait dans une lettre supprimée. */}
+      <DeleteLetter id={view.id} title={analysis?.jobTitle ?? "Nouvelle lettre"} disabled={running !== null} />
     </header>
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)]">
       <div className="flex flex-col gap-6">

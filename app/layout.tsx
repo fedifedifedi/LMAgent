@@ -13,7 +13,9 @@ const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"
 
 export const metadata: Metadata = {
   title: "LMAgent",
-  description: "Lettres de motivation personnalisées par offre d'emploi.",
+  applicationName: "LMAgent",
+  description: "LMAgent (Lettre de Motivation Agent) : une lettre de motivation personnalisée pour chaque offre d'emploi, à partir de ton CV.",
+  openGraph: { siteName: "LMAgent", title: "LMAgent", description: "Lettre de Motivation Agent : une lettre par offre, écrite à partir de ton parcours." },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

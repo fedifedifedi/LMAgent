@@ -240,6 +240,13 @@ describe("configuration (LLM_PROVIDER, LLM_MODEL)", () => {
     expect(() => readLLMConfig({ LLM_PROVIDER: "openai" })).toThrow(LLMConfigError);
   });
 
+  test("LLM_MODEL_FAST pour le niveau rapide, LLM_MODEL sinon (et en repli)", () => {
+    const env = { LLM_PROVIDER: "gemini", LLM_MODEL: "modele-principal", LLM_MODEL_FAST: "modele-rapide", GEMINI_API_KEY: "k" };
+    expect(getProvider(env, "fast").model).toBe("modele-rapide");
+    expect(getProvider(env).model).toBe("modele-principal");
+    expect(getProvider({ ...env, LLM_MODEL_FAST: "" }, "fast").model).toBe("modele-principal");
+  });
+
   test("provider et modèle pris dans l'environnement", () => {
     const provider = getProvider({ LLM_PROVIDER: "anthropic", LLM_MODEL: "un-modele", ANTHROPIC_API_KEY: "k" });
     expect({ name: provider.name, model: provider.model }).toEqual({ name: "anthropic", model: "un-modele" });

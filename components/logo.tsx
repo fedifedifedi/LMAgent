@@ -54,22 +54,33 @@ export function LogoMark({ className, compact = false }: { className?: string; c
   );
 }
 
-/** Composition de l'original : marque au-dessus, « LM AGENT » centré en dessous (accueil, PDF). */
-export function LogoStacked({ className }: { className?: string }) {
+/** Nom de l'application : « LMAgent » (Lettre de Motivation Agent), toujours écrit ainsi. */
+export const APP_NAME = "LMAgent";
+
+function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex flex-col items-center gap-3", className)}>
-      <LogoMark className="size-40" />
-      <span className="font-sans text-4xl font-extrabold tracking-[0.04em] uppercase">LM Agent</span>
+    <span className={cn("font-sans font-extrabold tracking-tight", className)} translate="no">
+      {APP_NAME}
     </span>
   );
 }
 
-/** Logo en ligne : marque + « LM AGENT » en capitales grasses (en-tête). */
+/** Composition de l'original : marque au-dessus, nom centré en dessous (accueil, PDF). */
+export function LogoStacked({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex flex-col items-center gap-3", className)}>
+      <LogoMark className="size-40" />
+      <Wordmark className="text-4xl" />
+    </span>
+  );
+}
+
+/** Logo en ligne : marque + nom (en-tête). */
 export function Logo({ className, markClassName, compact = true }: { className?: string; markClassName?: string; compact?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <LogoMark className={cn("size-9", markClassName)} compact={compact} />
-      <span className="font-sans font-extrabold tracking-[0.04em] uppercase">LM Agent</span>
+      <Wordmark />
     </span>
   );
 }

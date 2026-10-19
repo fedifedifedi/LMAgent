@@ -1,6 +1,8 @@
 @AGENTS.md
 
 # Projet : LMAgent
+Nom de l'app : « LMAgent » (L-M-Agent, pour « Lettre de Motivation Agent »), toujours écrit ainsi : jamais « LM AGENT »,
+« LM Agent » ni « Imagent ». Constante APP_NAME dans components/logo.tsx.
 App Next.js multi-utilisateur qui génère une lettre de motivation personnalisée par offre d'emploi, avec aperçu et export PDF designé.
 Chaque utilisateur importe son CV (PDF, image ou texte), le LLM l'extrait vers le schéma Zod du profil, l'utilisateur vérifie/corrige
 dans un formulaire, puis le profil est enregistré en base. Il choisit ensuite un profil validé, colle une offre (texte ou lien),
@@ -32,6 +34,7 @@ lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall
 ## Design et animations
 - Logo : celui fourni par l'utilisateur (original : public/brand/lmagent-logo-original.jpg), redessiné en SVG dans
   components/logo.tsx (LogoMark, Logo en ligne, LogoStacked comme l'original) ; favicon app/icon.svg (version compacte).
+  Le mot sous la marque est « LMAgent » (Public Sans grasse), pas « LM AGENT » comme sur l'image d'origine.
   Ne pas le remplacer par une autre piste : l'utilisateur veut CE logo. Dégradés SVG en userSpaceOnUse (un trait
   horizontal en objectBoundingBox ne s'affiche pas).
 - Direction retenue : « Encre & papier » (référence : https://claude.ai/artifact/LdnhjcHWPiRgaNZYgzLwY8).
@@ -100,6 +103,10 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
   Compétences d'expérience absentes des groupes ajoutées à « Autres compétences » (syncSkillsIntoGroups). Fusion projet →
   expérience : lib/profile/merge.ts. Libellés lisibles des éléments (sources de la lettre) : lib/profile/labels.ts.
   Brouillon local (localStorage) par import / profil. Import déjà relié à un profil → redirection vers son édition.
+- Quasi-doublons de compétences (« Qdrant » / « recherche vectorielle (Qdrant) ») : lib/profile/skill-duplicates.ts,
+  signalés dans la section Compétences et le récapitulatif ; fusion au choix de l'utilisateur (mergeSkills : une seule
+  place par compétence, priorité au groupe thématique, « Autres compétences » en dernier).
+- Lettres : suppression avec confirmation sur la page de la lettre (deleteLetterAction, LlmCall en cascade).
 - Disponibilité : seul contractTypes est obligatoire. Réalisations : 0 minimum (avertissement). Messages Zod en français.
 
 ## LLM (lib/llm/)
@@ -108,6 +115,9 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
   embed() viendra à l'étape 9.
 - Les providers ne font que traduire ; validation Zod, relances (MAX_ATTEMPTS = 3 appels) et cumul des tokens
   sont dans lib/llm/generate.ts. Chaque appel renvoie usage (table LlmCall à l'étape 7).
+- Niveaux de modèle (économie du quota) : analyzeOffer et matchProfile utilisent LLM_MODEL_FAST s'il est défini
+  (tier "fast" de generateObject / getProvider), sinon LLM_MODEL ; rédaction, critique, réécriture et extraction du CV
+  restent sur LLM_MODEL.
 - reasoning : "low" pour la recopie structurée (extraction de CV, analyse d'offre), plus élevé pour writeLetter et critique.
   Gemini : thinkingLevel (Gemini 3) ; Anthropic : output_config.effort.
 - Sorties déclarées dans lib/schemas/llm-outputs.ts : `schema` = schéma cible STRICT envoyé au modèle (sans .catch(),

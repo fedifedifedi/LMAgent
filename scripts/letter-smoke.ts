@@ -30,9 +30,11 @@ const profile = ProfileSchema.parse({
 });
 
 const provider = getProvider();
+const fast = getProvider(process.env, "fast");
 const usages: Array<[string, LLMUsage]> = [];
-const track = (step: string) => ({ provider, onUsage: (u: LLMUsage) => usages.push([step, u]) });
-console.log(`provider: ${provider.name} | modèle: ${provider.model}`);
+// Comme l'application : analyse et correspondance sur LLM_MODEL_FAST (s'il est défini).
+const track = (step: string) => ({ provider: step === "analyze" || step === "match" ? fast : provider, onUsage: (u: LLMUsage) => usages.push([step, u]) });
+console.log(`provider: ${provider.name} | modèle : ${provider.model} | modèle rapide : ${fast.model}`);
 
 try {
   const analysis = await analyzeOffer(OFFER, track("analyze"));

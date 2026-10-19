@@ -53,7 +53,23 @@ export async function createLetterAction(_previous: NewLetterState, formData: Fo
   redirect(`/letters/${letter.id}`);
 }
 
-export type StepActionResult = { view: LetterView; error?: string; retryAfterSeconds?: number };
+/** Supprime la lettre (et ses appels LlmCall en cascade), puis revient à la fiche du profil. */
+export async function deleteLetterAction(letterId: unknown): Promise<{ error: string } | void> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
+  const letter = await db.letter.findUnique({ where: { id: id.data }, select: { profileId: true } });
+  if (!letter) return { error: "Lettre introuvable." };
+  try {
+    await db.letter.delete({ where: { id: id.data } });
+  } catch (error) {
+    console.error("Suppression de la lettre :", error);
+    return { error: "La suppression a échoué." };
+  }
+  revalidatePath(`/profiles/${letter.profileId}`);
+  redirect(`/profiles/${letter.profileId}`);
+}
+
+export type StepActionResult ={ view: LetterView; error?: string; retryAfterSeconds?: number };
 
 /** Exécute l'étape suivante du pipeline (appelée par la page, une étape à la fois) et renvoie l'état à jour. */
 export async function runLetterStepAction(letterId: unknown): Promise<StepActionResult | { error: string }> {
