@@ -25,7 +25,7 @@ export default function Home() {
             <div className="flex flex-col gap-6">
               <LogoStacked className="self-start" />
               <h1 className="home-title max-w-[14ch] font-heading text-5xl leading-[1.02] sm:text-6xl">
-                Une lettre par offre, écrite à partir de <em>ton parcours</em>.
+                Une lettre par offre, écrite à partir de <span className="whitespace-nowrap"><em>ton parcours</em>.</span>
               </h1>
               <span aria-hidden="true" className="home-rule h-px w-32 origin-left bg-foreground" />
               <p className="home-lede max-w-[48ch] text-lg text-muted-foreground">
