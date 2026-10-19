@@ -15,6 +15,11 @@ lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de le
 fiche, édition, suppression) et socle du design (jetons clair / sombre, polices, Lenis, apparitions CSS).
 
 À faire, dans cet ordre (proposer le plan détaillé avant chaque étape) :
+- **6b. Finition** : logo choisi parmi les pistes (https://claude.ai/artifact/RTGLyGi2r98S1oFfDdWdYW), intégré dans l'en-tête,
+  le favicon (app/icon.svg) et plus tard le PDF. Accueil simple (logo, accroche, 3 étapes : importer son CV, coller une offre,
+  obtenir sa lettre ; bouton « Commencer ») ; version animée après l'étape 7. Fiche du profil : score de complétude avec ce
+  qui manque, frise chronologique du parcours, compétences groupées par catégorie, bouton « Générer une lettre avec ce
+  profil » désactivé jusqu'à l'étape 7.
 - **7. Génération de lettres (pipeline + UI)** : choisir un profil validé, coller le texte de l'offre ou son lien.
   Lien : texte de la page récupéré côté serveur ; en cas d'échec (LinkedIn, Indeed et d'autres bloquent souvent), message clair
   demandant de coller le texte. Montrer à l'utilisateur ce qui a été extrait de l'offre (poste, entreprise, compétences demandées)
