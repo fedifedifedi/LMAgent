@@ -3,11 +3,16 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-/**
- * Crée une base SQLite temporaire avec toutes les migrations appliquées et pointe DATABASE_URL dessus.
- * À appeler AVANT d'importer lib/db (qui lit DATABASE_URL à l'import).
- */
-export async function setupTestDatabase() {
+function removeDir(dir: string) {
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // Windows : libSQL garde le fichier verrouillé jusqu'à la fin du processus. Dossier temporaire, on le laisse.
+  }
+}
+
+/** Crée une base SQLite temporaire sur laquelle toutes les migrations sont appliquées, dans l'ordre. */
+export async function createMigratedDatabase() {
   const dir = mkdtempSync(path.join(tmpdir(), "lmagent-test-"));
   const url = `file:${path.join(dir, "test.db").replaceAll("\\", "/")}`;
 
@@ -22,17 +27,22 @@ export async function setupTestDatabase() {
   }
   client.close();
 
-  process.env.DATABASE_URL = url;
+  return { url, cleanup: () => removeDir(dir) };
+}
+
+/**
+ * Crée une base migrée et pointe DATABASE_URL dessus.
+ * À appeler AVANT d'importer lib/db (qui lit DATABASE_URL à l'import).
+ */
+export async function setupTestDatabase() {
+  const migrated = await createMigratedDatabase();
+  process.env.DATABASE_URL = migrated.url;
 
   return {
     async cleanup() {
       const { db } = await import("@/lib/db");
       await db.$disconnect();
-      try {
-        rmSync(dir, { recursive: true, force: true });
-      } catch {
-        // Windows : libSQL garde le fichier verrouillé jusqu'à la fin du processus. Dossier temporaire, on le laisse.
-      }
+      migrated.cleanup();
     },
   };
 }
