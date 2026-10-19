@@ -1,123 +1,64 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { io } from "next/cache";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
+import { ProfileForm } from "@/app/profiles/_components/profile-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { draftWarnings } from "@/lib/cv/draft-warnings";
+import { profileWarnings } from "@/lib/profile/warnings";
+import { draftToFormValues } from "@/lib/profile/form-values";
 import { getCvImport } from "@/lib/repositories/cv-imports";
 
-export const metadata: Metadata = { title: "Brouillon de profil · LMAgent" };
+export const metadata: Metadata = { title: "Vérifier le profil · LMAgent" };
 
 export default function CvImportPage({ params }: PageProps<"/profiles/import/[id]">) {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10">
+      <header className="flex flex-col gap-2">
+        <h1 className="font-heading text-4xl">Vérifie ton profil</h1>
+        <p className="max-w-[65ch] text-muted-foreground">
+          Voici ce que le modèle a lu dans ton CV. Corrige ce qui est faux, complète ce qui manque : la lettre ne citera que ce
+          qui est enregistré ici.
+        </p>
+      </header>
       <Suspense fallback={<p className="text-muted-foreground">Chargement du brouillon…</p>}>
-        <CvImportView params={params} />
+        <CvImportForm params={params} />
       </Suspense>
     </main>
   );
 }
 
-async function CvImportView({ params }: Pick<PageProps<"/profiles/import/[id]">, "params">) {
+async function CvImportForm({ params }: Pick<PageProps<"/profiles/import/[id]">, "params">) {
   const { id } = await params;
+  await io();
   const cvImport = await getCvImport(id);
   if (!cvImport) notFound();
+  // Déjà enregistré : on modifie le profil existant plutôt que d'en créer un second.
+  if (cvImport.profileId) redirect(`/profiles/${cvImport.profileId}/edit`);
 
-  const { draft, usage } = cvImport;
-  const warnings = draftWarnings(draft);
-  const sourceLabel = {
-    PDF: `PDF « ${cvImport.sourceName} »`,
-    IMAGE: `image « ${cvImport.sourceName} »`,
-    TEXT: "texte collé",
-  }[cvImport.source];
-  const readModeLabel = cvImport.readMode === "NATIVE" ? "lu directement par le modèle" : "texte extrait";
-  const fullName = [draft.identity.firstName, draft.identity.lastName].filter(Boolean).join(" ") || "Nom non trouvé";
-  const counts = [
-    ["Expériences", draft.experiences.length],
-    ["Projets", draft.projects.length],
-    ["Formations", draft.education.length],
-    ["Compétences", draft.skills.reduce((total, group) => total + group.items.length, 0)],
-    ["Langues", draft.languages.length],
-  ] as const;
+  const defaultValues = draftToFormValues(cvImport.draft);
+  const { usage } = cvImport;
+  const source = { PDF: `PDF « ${cvImport.sourceName} »`, IMAGE: `image « ${cvImport.sourceName} »`, TEXT: "texte collé" }[cvImport.source];
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>{fullName}</CardTitle>
-          <CardDescription>{draft.identity.headline ?? "Titre non trouvé"}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-2">
-            {counts.map(([label, count]) => (
-              <Badge key={label} variant="secondary">
-                {label} : {count}
-              </Badge>
-            ))}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Source : {sourceLabel} ({readModeLabel}) · {usage.provider} /{" "}
-            {usage.model} · {usage.inputTokens + usage.outputTokens} tokens{usage.estimated ? " (estimés)" : ""} ·{" "}
-            {usage.attempts} tentative{usage.attempts > 1 ? "s" : ""}
-          </p>
-        </CardContent>
-      </Card>
-
-      {cvImport.degraded && (
-        <Alert variant="destructive">
-          <AlertTitle>Extraction partielle</AlertTitle>
-          <AlertDescription>
-            <p>Le modèle n&apos;a pas respecté tout le format attendu. Les champs concernés ont été vidés ; vérifie-les.</p>
-            <pre className="mt-2 whitespace-pre-wrap text-xs">{cvImport.issues}</pre>
-          </AlertDescription>
-        </Alert>
-      )}
-
+      <p className="text-sm text-muted-foreground">
+        Source : {source}
+        {cvImport.readMode === "NATIVE" ? ", lue directement par le modèle" : ""} · {profileWarnings(defaultValues).length} point(s) à
+        compléter · {usage.provider} / {usage.model}, {usage.inputTokens + usage.outputTokens} tokens{usage.estimated ? " (estimés)" : ""}
+      </p>
       {cvImport.readMode === "NATIVE" && (
         <Alert>
           <AlertTitle>CV lu à partir de l&apos;image</AlertTitle>
-          <AlertDescription>
-            Les passages illisibles ont été laissés vides plutôt que devinés : compare le brouillon avec ton CV.
-          </AlertDescription>
+          <AlertDescription>Les passages illisibles ont été laissés vides plutôt que devinés : compare avec ton CV.</AlertDescription>
         </Alert>
       )}
-
-      {warnings.incompleteDates.length > 0 && (
-        <Alert>
-          <AlertTitle>Dates à préciser</AlertTitle>
-          <AlertDescription>
-            <p>Le CV ne donne que l&apos;année : précise le mois si tu le connais, sinon garde l&apos;année.</p>
-            <ul className="mt-2 list-disc pl-5">
-              {warnings.incompleteDates.map((label) => (
-                <li key={label}>{label}</li>
-              ))}
-            </ul>
-          </AlertDescription>
+      {cvImport.degraded && (
+        <Alert variant="destructive">
+          <AlertTitle>Extraction partielle</AlertTitle>
+          <AlertDescription>Le modèle n&apos;a pas respecté tout le format attendu : certains champs ont été vidés, vérifie-les.</AlertDescription>
         </Alert>
       )}
-
-      {(warnings.missingSummary || warnings.missingAvailability) && (
-        <Alert>
-          <AlertTitle>À compléter</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc pl-5">
-              {warnings.missingSummary && <li>Ton CV n&apos;a pas de résumé : tu l&apos;écriras dans le formulaire.</li>}
-              {warnings.missingAvailability && <li>Aucune disponibilité trouvée (type de contrat, date de début…).</li>}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Brouillon extrait</CardTitle>
-          <CardDescription>Le formulaire de vérification et d&apos;enregistrement arrive à l&apos;étape suivante.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-[32rem] overflow-auto rounded-md bg-muted p-4 text-xs">{JSON.stringify(draft, null, 2)}</pre>
-        </CardContent>
-      </Card>
+      <ProfileForm defaultValues={defaultValues} target={{ importId: cvImport.id }} />
     </>
   );
 }

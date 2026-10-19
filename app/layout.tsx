@@ -1,16 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Instrument_Serif, Newsreader, Public_Sans } from "next/font/google";
+import Link from "next/link";
+import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { ThemeToggle } from "@/components/theme";
+import { themeScript } from "@/lib/theme-script";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const publicSans = Public_Sans({ variable: "--font-public-sans", subsets: ["latin"] });
+const instrumentSerif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
+const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "LMAgent",
@@ -21,9 +19,33 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // La classe .dark est posée par themeScript avant l'hydratation.
+      suppressHydrationWarning
+      className={`${publicSans.variable} ${instrumentSerif.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="flex min-h-full flex-col">
+        <SmoothScroll />
+        <header className="border-b">
+          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <Link href="/" className="font-heading text-2xl">
+              LMAgent
+            </Link>
+            <nav className="flex flex-wrap items-center gap-4 text-sm">
+              <Link href="/profiles" className="font-medium hover:underline">
+                Profils
+              </Link>
+              <Link href="/profiles/new" className="font-medium hover:underline">
+                Importer un CV
+              </Link>
+              <ThemeToggle />
+            </nav>
+          </div>
+        </header>
+        <div className="flex flex-1 flex-col">{children}</div>
+      </body>
     </html>
   );
 }

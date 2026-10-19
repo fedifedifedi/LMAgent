@@ -8,9 +8,12 @@ export default function Home() {
       <p className="text-lg text-muted-foreground">
         Des lettres de motivation personnalisées pour chaque offre, à partir de ton profil et de tes documents.
       </p>
-      <div>
+      <div className="flex flex-wrap gap-3">
         <Link href="/profiles/new" className={buttonVariants()}>
           Créer un profil à partir d&apos;un CV
+        </Link>
+        <Link href="/profiles" className={buttonVariants({ variant: "outline" })}>
+          Mes profils
         </Link>
       </div>
     </main>

@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+// Messages d'erreur Zod en français par défaut (formulaire du profil, et relances envoyées au modèle).
+z.config(z.locales.fr());
+
 // Les .describe() sont repris dans le JSON Schema envoyé au LLM (Gemini ne gère pas "pattern").
 // Dates à la précision de la source : un CV qui ne donne que l'année ne doit pas forcer un mois inventé.
 const yearMonth = z
-  .string()
-  .regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/, "Format attendu : YYYY ou YYYY-MM")
+  .string("Date obligatoire (AAAA ou AAAA-MM)")
+  .regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/, "Format attendu : AAAA ou AAAA-MM (ex. 2024 ou 2024-09)")
   .describe("YYYY, or YYYY-MM only if the month is written in the source. Never add a month that is not written.");
 
 /** Date réduite à l'année (YYYY) : le formulaire la signale pour que l'utilisateur la précise ou la confirme. */
@@ -18,35 +21,44 @@ const id = z
 /** Comparaison des compétences insensible à la casse et aux espaces ("Node JS" == "nodejs"). */
 export const normalizeSkill = (skill: string) => skill.toLowerCase().replace(/\s+/g, "");
 
+// Messages affichés dans le formulaire du profil.
+// Un champ vide arrive absent (cf. cleanProfileInput) : même message pour « absent » et « vide ».
+const required = () => z.string("Champ obligatoire").trim().min(1, "Champ obligatoire");
+
+export const EXPERIENCE_TYPES = ["cdi", "cdd", "freelance", "internship", "apprenticeship", "part-time", "other"] as const;
+export const CONTRACT_TYPES = ["pfe-internship", "internship", "cdi", "cdd", "freelance", "apprenticeship", "part-time"] as const;
+export const LANGUAGE_LEVELS = ["native", "C2", "C1", "B2", "B1", "A2", "A1"] as const;
+
 export const ExperienceSchema = z.object({
   id,
-  title: z.string().min(1),
-  company: z.string().min(1),
+  title: required(),
+  company: required(),
   location: z.string().optional(),
-  type: z.enum(["cdi", "cdd", "freelance", "internship", "apprenticeship", "part-time", "other"]),
+  type: z.enum(EXPERIENCE_TYPES, "Choisis un type d'expérience"),
   start: yearMonth,
   end: yearMonth.nullable(), // null = poste actuel
   summary: z.string().optional(),
-  achievements: z.array(z.string().min(1)).min(1),
+  // Peut être vide (un job étudiant sans résultat notable) : signalé par un avertissement, jamais inventé.
+  achievements: z.array(z.string().min(1)),
   skills: z.array(z.string().min(1)),
 });
 
 export const ProjectSchema = z.object({
   id,
-  name: z.string().min(1),
+  name: required(),
   role: z.string().optional(),
-  url: z.url().optional(),
+  url: z.url("URL invalide (https://…)").optional(),
   start: yearMonth.optional(),
   end: yearMonth.nullable().optional(),
-  summary: z.string().min(1),
-  achievements: z.array(z.string().min(1)).min(1),
+  summary: required(),
+  achievements: z.array(z.string().min(1)),
   skills: z.array(z.string().min(1)),
 });
 
 export const EducationSchema = z.object({
   id,
-  degree: z.string().min(1),
-  school: z.string().min(1),
+  degree: required(),
+  school: required(),
   location: z.string().optional(),
   start: yearMonth.optional(),
   end: yearMonth.nullable(),
@@ -54,53 +66,57 @@ export const EducationSchema = z.object({
 });
 
 export const SkillGroupSchema = z.object({
-  category: z.string().min(1),
-  items: z.array(z.string().min(1)).min(1),
+  category: required(),
+  items: z.array(z.string().min(1)).min(1, "Ajoute au moins une compétence"),
 });
 
 export const LanguageSchema = z.object({
-  name: z.string().min(1),
-  level: z.enum(["native", "C2", "C1", "B2", "B1", "A2", "A1"]),
+  name: required(),
+  level: z.enum(LANGUAGE_LEVELS, "Choisis un niveau"),
 });
 
+/** Seul le type de contrat est obligatoire ; le reste est facultatif et signalé par des avertissements. */
 export const AvailabilitySchema = z.object({
-  contractTypes: z
-    .array(z.enum(["pfe-internship", "internship", "cdi", "cdd", "freelance", "apprenticeship", "part-time"]))
-    .min(1),
-  durationMonths: z.number().int().positive().optional(), // ex. 6 pour un stage PFE
+  contractTypes: z.array(z.enum(CONTRACT_TYPES)).min(1, "Choisis au moins un type de contrat"),
+  durationMonths: z.number("Nombre de mois").int("Nombre entier de mois").positive("Durée positive").optional(), // ex. 6 pour un stage PFE
   // Une seule regex, sans format "date" : avec une union [iso.date, YYYY-MM], Gemini privilégiait la date
   // complète et inventait le jour ("février 2027" -> 2027-02-02).
   startDate: z
     .string()
     .regex(/^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/, "Format attendu : YYYY, YYYY-MM ou YYYY-MM-DD")
-    .describe("YYYY, YYYY-MM or YYYY-MM-DD, exactly as precise as written. Never add a month or a day that is not written."),
-  mobility: z.object({
-    countries: z.array(z.string().min(1)).default([]),
-    cities: z.array(z.string().min(1)).default([]),
-  }),
-  acceptsRemote: z.boolean(),
+    .describe("YYYY, YYYY-MM or YYYY-MM-DD, exactly as precise as written. Never add a month or a day that is not written.")
+    .optional(),
+  mobility: z
+    .object({
+      countries: z.array(z.string().min(1)).default([]),
+      cities: z.array(z.string().min(1)).default([]),
+    })
+    .default({ countries: [], cities: [] }),
+  acceptsRemote: z.boolean().optional(),
 });
 
 export const IdentitySchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  headline: z.string().min(1).describe("Short professional title, e.g. Full-stack TypeScript developer"),
+  firstName: required(),
+  lastName: required(),
+  headline: required().describe("Short professional title, e.g. Full-stack TypeScript developer"),
 });
 
+const url = () => z.url("URL invalide (https://…)");
+
 export const ContactSchema = z.object({
-  email: z.email(),
+  email: z.email("Adresse e-mail invalide"),
   phone: z.string().optional(),
   city: z.string().optional(),
-  linkedin: z.url().optional(),
-  github: z.url().optional(),
-  website: z.url().optional(),
+  linkedin: url().optional(),
+  github: url().optional(),
+  website: url().optional(),
 });
 
 export const ProfileSchema = z
   .object({
     identity: IdentitySchema,
     contact: ContactSchema,
-    summary: z.string().min(1),
+    summary: required(),
     availability: AvailabilitySchema,
     experiences: z.array(ExperienceSchema),
     projects: z.array(ProjectSchema).default([]),
@@ -131,7 +147,7 @@ export const ProfileSchema = z
             ctx.addIssue({
               code: "custom",
               path: [section, index, "skills", skillIndex],
-              message: `Compétence "${skill}" absente de la liste globale skills`,
+              message: `« ${skill} » doit aussi figurer dans les compétences du profil`,
             });
           }
         });

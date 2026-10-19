@@ -11,18 +11,15 @@ Faites : 1. Fondations · 2. Schéma du profil · 3. Base (Prisma + libSQL, FTS5
 · 5b. CV en image (JPG, PNG, WebP redimensionnés par canvas dans le navigateur, aperçu, HEIC refusé avec message) et PDF scannés,
 lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de lecture native pour les PDF texte (jugée inutile).
 
+· 6. Formulaire du profil (vérification, avertissements, fusion projet → expérience, enregistrement lié à l'import, liste,
+fiche, édition, suppression) et socle du design (jetons clair / sombre, polices, Lenis, apparitions CSS).
+
 À faire, dans cet ordre (proposer le plan détaillé avant chaque étape) :
-- **Avant toute interface de l'étape 6** : proposer 2 ou 3 directions visuelles (palette, typographies, cartes et boutons,
-  effets GSAP / React Bits et où), incluant l'écran de génération et l'aperçu de la lettre. L'utilisateur choisit, puis on code.
-- **6. Formulaire du profil** : vérification et correction du brouillon, validation par ProfileSchema, enregistrement (Profile,
-  CvImport.profileId). Dates à l'année signalées ; summary écrit par l'utilisateur (éventuel bouton « Proposer un résumé » à relire).
-  Champs vides importants signalés : disponibilité (durée, mobilité), compétences vides, réalisations vides.
-  Bouton pour fusionner un projet dans une expérience (le modèle a déjà dupliqué des stages en expérience ET en projet).
-  Liste des profils.
 - **7. Génération de lettres (pipeline + UI)** : choisir un profil validé, coller le texte de l'offre ou son lien.
   Lien : texte de la page récupéré côté serveur ; en cas d'échec (LinkedIn, Indeed et d'autres bloquent souvent), message clair
   demandant de coller le texte. Montrer à l'utilisateur ce qui a été extrait de l'offre (poste, entreprise, compétences demandées)
   avant ou pendant la génération. Pipeline sur le profil seul (RAG à l'étape 9). Persistance Letter + table LlmCall (tokens par appel).
+  Bouton « Proposer un résumé » (rédigé par le modèle à partir du profil, relu par l'utilisateur) dans le formulaire du profil.
 - **8. Design et export PDF** : templates de lettre designés (React/Tailwind, les mêmes pour l'aperçu et le PDF, une page),
   export via puppeteer-core + Edge.
 - **9. RAG sur documents** : téléversement des documents du profil, découpage, recherche FTS5 branchée sur matchProfile,
@@ -39,6 +36,10 @@ lus nativement par le modèle (prompt : omettre l'illisible). Pas d'option de le
   au survol, ex. « Stage Talan, 2025 », jamais l'id brut) ; « Surligner les compétences de l'offre » en option ;
   tokens et relances dans un détail repliable « Détails de la génération ». Sources, surlignage et détails : JAMAIS dans le PDF.
 - GSAP (+ @gsap/react, hook useGSAP), Lenis (défilement doux), composants React Bits (copiés dans le projet).
+- Apparitions discrètes des pages de travail en CSS (.reveal, .draw-tick dans globals.css), pas en GSAP : un gsap.from
+  masque le contenu dès le départ et le laisse invisible si les images ne défilent pas (onglet en arrière-plan, headless).
+  GSAP pour les séquences orchestrées (étapes de l'agent, lettre) et l'accueil. Thème : script dans <head> (lib/theme-script.ts)
+  + ThemeToggle (Système / Clair / Sombre, localStorage) ; jetons dans app/globals.css.
 - Animations marquées sur la page d'accueil seulement ; discrètes dans les pages de travail (import du CV, formulaire, génération).
   Génération : animation des étapes de l'agent, apparition progressive de la lettre.
 - Lenis désactivé (data-lenis-prevent) sur les zones qui défilent : textarea, aperçu de la lettre, listes.
@@ -84,7 +85,15 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
   octets (lib/cv/file-type.ts). Texte collé ou PDF avec texte (unpdf) → readMode TEXT ; image ou PDF scanné → readMode NATIVE
   (fichier joint, attachments de generateObject). extractProfile en reasoning "low", CvImport persisté.
   summary rempli seulement si le CV a son propre résumé ; un stage ou un emploi va dans experiences, jamais dans projects.
-- Pages qui lisent la base (Cache Components) : lecture dans un composant sous <Suspense>, params lus dedans.
+- Pages qui lisent la base (Cache Components) : lecture dans un composant sous <Suspense>, params lus dedans, et
+  `await io()` (next/cache) AVANT la requête : libSQL local répond pendant le prerender, sinon la page est figée au build.
+- Formulaire du profil (étape 6) : app/profiles/_components/profile-form.tsx (react-hook-form 7.89 + @hookform/resolvers 5.9.1,
+  versions épinglées). Valeurs = entrée de ProfileSchema, nettoyées par cleanProfileInput ("" → absent) avant validation,
+  côté client ET serveur (saveProfileAction). Erreurs bloquantes = ProfileSchema ; avertissements = lib/profile/warnings.ts.
+  Compétences d'expérience absentes des groupes ajoutées à « Autres compétences » (syncSkillsIntoGroups). Fusion projet →
+  expérience : lib/profile/merge.ts. Libellés lisibles des éléments (sources de la lettre) : lib/profile/labels.ts.
+  Brouillon local (localStorage) par import / profil. Import déjà relié à un profil → redirection vers son édition.
+- Disponibilité : seul contractTypes est obligatoire. Réalisations : 0 minimum (avertissement). Messages Zod en français.
 
 ## LLM (lib/llm/)
 - Point d'entrée : generateObject({ output, system, prompt, reasoning }) de lib/llm (server-only). Provider via LLM_PROVIDER

@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { draftWarnings } from "@/lib/cv/draft-warnings";
-import { AvailabilitySchema, ExperienceSchema, isIncompleteDate, ProfileDraftSchema } from "@/lib/schemas/profile";
+import { cleanProfileInput } from "@/lib/profile/clean";
+import { AvailabilitySchema, ExperienceSchema, isIncompleteDate, ProfileSchema } from "@/lib/schemas/profile";
 
-const experience = (start: string, end: string | null) => ({
+const experience = (start: string, end: string | null, achievements: string[] = ["x"]) => ({
   id: "exp-test",
   title: "Dev",
   company: "Acme",
   type: "cdi",
   start,
   end,
-  achievements: ["x"],
+  achievements,
   skills: [],
 });
 
@@ -25,7 +25,7 @@ describe("dates du profil : précision de la source", () => {
 
   test("startDate : YYYY, YYYY-MM ou YYYY-MM-DD, sans format date dans le JSON Schema", () => {
     const startDate = AvailabilitySchema.shape.startDate;
-    for (const ok of ["2027", "2027-02", "2027-02-15"]) expect(startDate.safeParse(ok).success).toBe(true);
+    for (const ok of ["2027", "2027-02", "2027-02-15", undefined]) expect(startDate.safeParse(ok).success).toBe(true);
     for (const bad of ["2027-2", "2027-02-32", "février 2027"]) expect(startDate.safeParse(bad).success).toBe(false);
     expect(JSON.stringify(z.toJSONSchema(startDate))).not.toContain('"format"');
   });
@@ -38,29 +38,48 @@ describe("dates du profil : précision de la source", () => {
   });
 });
 
-describe("draftWarnings", () => {
-  test("dates à l'année, résumé et disponibilités absents", () => {
-    const draft = ProfileDraftSchema.parse({
-      experiences: [{ title: "Serveuse", company: "Café du Port", start: "2022", end: "2024" }],
-      education: [{ degree: "Master", school: "Université de Bordeaux", start: "2023-09", end: "2025" }],
-    });
-    expect(draftWarnings(draft)).toEqual({
-      incompleteDates: [
-        "Serveuse — Café du Port : début 2022",
-        "Serveuse — Café du Port : fin 2024",
-        "Master — Université de Bordeaux : fin 2025",
-      ],
-      missingSummary: true,
-      missingAvailability: true,
-    });
+describe("règles assouplies (étape 6)", () => {
+  test("réalisations vides acceptées (signalées par un avertissement, jamais inventées)", () => {
+    expect(ExperienceSchema.safeParse(experience("2022", "2024", [])).success).toBe(true);
   });
 
-  test("brouillon complet : aucun avertissement", () => {
-    const draft = ProfileDraftSchema.parse({
-      summary: "Accroche du CV",
-      availability: { contractTypes: ["pfe-internship"], startDate: "2027-02" },
-      experiences: [{ title: "Dev", company: "Acme", start: "2024-09", end: null }],
+  test("disponibilité : seul le type de contrat est obligatoire", () => {
+    expect(AvailabilitySchema.safeParse({ contractTypes: ["internship"] }).success).toBe(true);
+    const missing = AvailabilitySchema.safeParse({});
+    expect(missing.success).toBe(false);
+    expect(AvailabilitySchema.safeParse({ contractTypes: [] }).error?.issues[0].message).toBe("Choisis au moins un type de contrat");
+  });
+
+  test("messages en français pour le formulaire", () => {
+    const result = ProfileSchema.safeParse(
+      cleanProfileInput({
+        identity: { firstName: "", lastName: "Dubois", headline: "Data" },
+        contact: { email: "pas-un-mail", linkedin: "" },
+        summary: "",
+        availability: { contractTypes: ["internship"] },
+        experiences: [{ id: "exp-a", title: "Dev", company: "Acme", type: "", start: "", end: null, achievements: [], skills: [] }],
+        education: [],
+        skills: [],
+        languages: [],
+      }),
+    );
+    const messages = Object.fromEntries((result.error?.issues ?? []).map((issue) => [issue.path.join("."), issue.message]));
+    expect(messages).toMatchObject({
+      "identity.firstName": "Champ obligatoire",
+      "contact.email": "Adresse e-mail invalide",
+      summary: "Champ obligatoire",
+      "experiences.0.type": "Choisis un type d'expérience",
+      "experiences.0.start": "Date obligatoire (AAAA ou AAAA-MM)",
     });
-    expect(draftWarnings(draft)).toEqual({ incompleteDates: [], missingSummary: false, missingAvailability: false });
+    // Un champ facultatif vide (linkedin: "") n'est pas une erreur.
+    expect(messages["contact.linkedin"]).toBeUndefined();
+  });
+});
+
+describe("cleanProfileInput", () => {
+  test("chaînes vides et nombres non saisis retirés, valeurs gardées, listes filtrées", () => {
+    expect(
+      cleanProfileInput({ a: "", b: "  x  ", c: Number.NaN, d: 6, e: ["", " y ", ""], f: null, g: false, h: { i: "" } }),
+    ).toEqual({ b: "x", d: 6, e: ["y"], f: null, g: false, h: {} });
   });
 });
