@@ -161,8 +161,8 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
     return { type: "done" };
   }
 
-  // JSON invalide : une seule correction par lettre, dans la même conversation.
-  const corrections = await db.agentRun.count({ where: { letterId: run.letterId, kind: "CORRECTION" } });
+  // JSON invalide : une seule correction par conversation (une reprise après échec repart d'une nouvelle conversation).
+  const corrections = await db.agentRun.count({ where: { threadId: run.threadId, kind: "CORRECTION" } });
   if (corrections > 0) return fail("FAILED", INVALID_AFTER_CORRECTION, issues);
   if (!(await claim({ status: "SUCCESS", error: issues }))) return { type: "run", runId: run.id };
   const started = await client.sendMessage(run.threadId, agentCorrectionMessage(issues ?? "Invalid answer"));

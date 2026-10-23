@@ -142,7 +142,26 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
 - Gemini : @google/genai, responseJsonSchema filtré par sanitizeForGemini (pas de pattern : décrire les formats avec .describe()).
   Les 429 ne sont pas retentés par le SDK : LLMRateLimitError avec message clair et délai (retryDelay).
 
-## Pipeline de l'agent (lib/agent/, lib/letters/)
+## Agent Cominty (exigence : toute l'IA passe par Cominty ; Gemini supprimé à l'étape 6)
+- Branche de travail : `cominty` (ne pas pousser sur master/main sans accord). Agent managé déjà configuré sur
+  platform.cominty.ai ; identifiants COMINTY_API_KEY, COMINTY_USER_ID, COMINTY_AGENT_ID dans .env.local (jamais lus ni affichés).
+- Pas de SDK JS : client REST maison lib/cominty/ (d'après github.com/cominty/python-sdk) — POST /chat, POST /chat/{thread},
+  flux GET /chat/messages/{id}/stream (application/jsonl, reprise avec last-event-id), annulation, fichiers. En-tête
+  x-cominty-token, jamais envoyé au stockage des fichiers. Lignes de maintien (JSON non objet) ignorées.
+- Instructions de l'agent (côté Cominty) : section « LMAgent mode » (message commençant par « LMAgent » : JSON analysis, score,
+  scoreReasons, strengths, gaps, letter, cvAdjustments ; questions NATIVES de Cominty + {"status":"needs_input"} si une info
+  manque) et « LMAgent task » (tâche JSON générique : extraction du CV, résumé). Pas d'option de schéma de sortie : JSON dans le texte.
+- Lettre = UN tour d'agent (lib/letters/agent-run.ts) : AgentRun par message (START, ANSWER, CORRECTION), AgentEvent par étape
+  (rejouée au rechargement), route SSE /letters/[id]/agent, une seule correction automatique par conversation si le JSON est
+  invalide (lib/agent/agent-reply.ts : ids de sources autorisés + candidate-answers, noms d'exigences de l'analyse). La réponse
+  remplit analysis / match / content / insights : retouches, PDF et checkLetter inchangés. Coût Cominty dans LlmCall.costUsd.
+- Interface : étapes en direct (agent-timeline.tsx), questions en boutons (agent-questions.tsx ; « Autre… » ouvre un champ),
+  Arrêter / Reprendre, score et ajustements du CV. Mention « CV envoyé à Cominty » sur la page d'import.
+- Import du CV et résumé : provider `cominty` de lib/llm (LLM_PROVIDER=cominty), relances dans la même conversation.
+- Mock (défaut, tests, captures) : faux agent lib/cominty/mock-client.ts (une question puis la lettre). Test réel :
+  npm run cominty:smoke (UN appel, max_steps 3) — TOUJOURS demander l'accord avant (crédits). max_steps par défaut : 3.
+
+## Pipeline de l'agent (lib/agent/, lib/letters/) — ancien pipeline Gemini, remplacé par l'agent Cominty pour les nouvelles lettres
 analyzeOffer (reasoning low) → matchProfile (medium) → writeLetter (high) → critique (high) → au plus UNE réécriture (high).
 Chaque étape = une fonction (lib/agent/letter-agent.ts), sortie validée par un schéma Zod (lib/agent/schemas.ts).
 - Sources : catalogue du profil (lib/agent/sources.ts : ids des expériences, projets, formations + profile-summary,

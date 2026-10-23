@@ -185,12 +185,31 @@
 .draw-tick path {
   animation: lm-draw 0.45s ease-out 0.1s both;
 }
+/* Barre indéterminée pendant que l'agent Cominty travaille. */
+@keyframes lm-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.agent-progress {
+  animation: lm-progress 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal > *,
   .draw-tick path,
   .btn-shine::after,
-  .scan-line {
+  .scan-line,
+  .agent-progress {
     animation: none;
+  }
+  .agent-progress {
+    width: 100%;
+    opacity: 0.5;
   }
 }
 

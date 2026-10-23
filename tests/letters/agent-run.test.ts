@@ -45,13 +45,14 @@ function scriptedClient(replies: Array<Partial<ComintyMessage> | "interrupt">) {
   const sent: string[] = [];
   const resumedFrom: Array<string | undefined> = [];
   let n = 0;
+  const threadId = `t-${crypto.randomUUID()}`;
   const queue = [...replies];
   const byMessage = new Map<string, Partial<ComintyMessage> | "interrupt">();
   const started = (content: string) => {
     sent.push(content);
     const messageId = `m${++n}-${crypto.randomUUID()}`;
     byMessage.set(messageId, queue.shift() ?? {});
-    return { threadId: "t1", messageId };
+    return { threadId, messageId };
   };
   const client: AgentClient = {
     agentId: "scripted",
