@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "check:fts5": "node scripts/check-fts5.mjs",
+    "cominty:sessions": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/cominty-sessions.ts",
     "cominty:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe scripts/cominty-smoke.ts",
     "demo:record": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/record-demo-run.ts",
     "demo:seed": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/demo-seed.ts"
