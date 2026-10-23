@@ -20,7 +20,8 @@ const { createProfile } = await import("@/lib/repositories/profiles");
 
 const profile = json("lea-dubois.json");
 // Ce que le modèle aurait lu dans le CV : tout sauf la disponibilité, que le CV ne précise pas.
-const { availability: _availability, ...draft } = profile;
+const draft = { ...profile };
+delete draft.availability;
 
 const provider = createMockProvider({
   ...MOCK_FIXTURES,

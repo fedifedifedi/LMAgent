@@ -76,7 +76,7 @@ const decoder = new TextDecoder();
 let buffer = "";
 const short = (value: unknown, n = 110) => (typeof value === "string" ? value.replace(/\s+/g, " ").slice(0, n) : "");
 
-for await (const chunk of stream.body!) {
+for await (const chunk of stream.body as unknown as AsyncIterable<Uint8Array>) {
   buffer += decoder.decode(chunk, { stream: true });
   let newline: number;
   while ((newline = buffer.indexOf("\n")) >= 0) {
