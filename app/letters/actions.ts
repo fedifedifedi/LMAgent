@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { checkLetter } from "@/lib/agent/letter-checks";
 import { OfferAnalysisSchema, type ProfileMatch } from "@/lib/agent/schemas";
+import { getAgentClient } from "@/lib/cominty/agent-client";
+import { ComintyError } from "@/lib/cominty/errors";
 import { db } from "@/lib/db";
+import { AgentRunError, answerAgentRun, cancelAgentRun, startAgentRun } from "@/lib/letters/agent-run";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { applyEdits, LetterEditsSchema, StoredLetterSchema } from "@/lib/letters/stored";
 import { isLetterTemplate } from "@/lib/letters/templates";
@@ -129,6 +132,60 @@ export async function revertLetterAction(letterId: unknown): Promise<ViewResult>
     where: { id: id.data },
     data: { content: generated as Prisma.InputJsonObject, generated: Prisma.DbNull, checks: checks as unknown as Prisma.InputJsonValue },
   });
+  const view = await getLetterView(id.data);
+  return view ? { view } : { error: "Lettre introuvable." };
+}
+
+/** Message lisible pour une erreur de l'agent (clé refusée, limite, réseau), sans jamais la clé. */
+function agentErrorMessage(error: unknown): string {
+  if (error instanceof AgentRunError || error instanceof ComintyError) return error.message;
+  console.error("Agent Cominty :", error);
+  return "Erreur inattendue en contactant l'agent. Réessaie.";
+}
+
+type RunResult = { runId: string } | { error: string };
+
+/** Démarre l'agent Cominty sur la lettre (un seul tour : analyse, score, lettre, ajustements du CV). */
+export async function startAgentRunAction(letterId: unknown): Promise<RunResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
+  try {
+    return { runId: await startAgentRun(id.data, getAgentClient()) };
+  } catch (error) {
+    const message = agentErrorMessage(error);
+    await db.letter.updateMany({ where: { id: id.data, content: { equals: Prisma.DbNull } }, data: { status: "FAILED", error: message } });
+    return { error: message };
+  }
+}
+
+const AnswersSchema = z.array(z.object({ prompt: z.string().max(1000), answer: z.string().max(2000) })).min(1).max(5);
+
+/** Réponses du candidat aux questions de l'agent (boutons ou texte libre). */
+export async function answerAgentAction(letterId: unknown, answers: unknown): Promise<RunResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  const parsed = AnswersSchema.safeParse(answers);
+  if (!id.success) return { error: "Lettre introuvable." };
+  if (!parsed.success) return { error: "Réponse invalide." };
+  try {
+    return { runId: await answerAgentRun(id.data, parsed.data, getAgentClient()) };
+  } catch (error) {
+    return { error: agentErrorMessage(error) };
+  }
+}
+
+/** Arrête l'agent en cours ; la lettre peut être relancée avec « Reprendre ». */
+export async function cancelAgentRunAction(letterId: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
+  await cancelAgentRun(id.data, getAgentClient());
+  const view = await getLetterView(id.data);
+  return view ? { view } : { error: "Lettre introuvable." };
+}
+
+/** État à jour de la lettre (après la fin du flux de l'agent). */
+export async function getLetterViewAction(letterId: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
   const view = await getLetterView(id.data);
   return view ? { view } : { error: "Lettre introuvable." };
 }

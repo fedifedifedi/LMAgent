@@ -15,7 +15,7 @@ import { normalizeSkill, type Profile } from "@/lib/schemas/profile";
 
 export const metadata: Metadata = { title: "Profil · LMAgent" };
 
-const LETTER_STATUS = { DRAFT: "en cours", GENERATED: "prête", FAILED: "interrompue", FINAL: "prête" } as const;
+const LETTER_STATUS = { DRAFT: "en cours", NEEDS_INPUT: "attend tes réponses", GENERATED: "prête", FAILED: "interrompue", FINAL: "prête" } as const;
 
 export default function ProfilePage({ params, searchParams }: PageProps<"/profiles/[id]">) {
   return (
