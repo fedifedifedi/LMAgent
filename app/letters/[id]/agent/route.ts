@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getAgentClient } from "@/lib/cominty/agent-client";
 import { db } from "@/lib/db";
-import { followAgentRun, type AgentStreamEvent } from "@/lib/letters/agent-run";
+import { followAgentRun, markFollowFailure, type AgentStreamEvent } from "@/lib/letters/agent-run";
 
 /**
  * Étapes de l'agent Cominty en direct (Server-Sent Events) : rejoue les étapes enregistrées puis relaie le flux.
@@ -27,8 +27,8 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]
         controller.enqueue(encoder.encode(": connecté\n\n"));
         await followAgentRun(runId!, getAgentClient(), send, request.signal);
       } catch (error) {
-        console.error("Flux de l'agent :", error);
-        send({ type: "failed", error: error instanceof Error ? error.message : "Erreur inattendue pendant la génération." });
+        // Jamais d'erreur brute (Zod, Prisma) à l'écran ; la lettre devient reprenable au lieu de se relancer seule.
+        send({ type: "failed", error: await markFollowFailure(id, error) });
       } finally {
         try {
           controller.close();

@@ -9,7 +9,7 @@ import {
   toLetterFields,
   type CandidateAnswer,
 } from "@/lib/agent/agent-reply";
-import { ComintyStreamError } from "@/lib/cominty/errors";
+import { ComintyError, ComintyStreamError } from "@/lib/cominty/errors";
 import type { AgentClient } from "@/lib/cominty/mock-client";
 import type { ComintyEvent, ComintyMessage, ComintyQuestion } from "@/lib/cominty/schemas";
 import { db } from "@/lib/db";
@@ -35,6 +35,8 @@ const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 export const CANCELLED_MESSAGE = "Génération annulée.";
 export const BUDGET_MESSAGE = "Crédits Cominty épuisés : recharge ton compte sur platform.cominty.ai, puis clique sur Reprendre.";
+const CORRECTION_FAILED = "L'agent a répondu dans un format inattendu et la demande de correction n'a pas pu être envoyée. Clique sur Reprendre.";
+const FOLLOW_FAILED = "Réponse inattendue de Cominty pendant la génération. Clique sur Reprendre.";
 const INVALID_AFTER_CORRECTION =
   "L'agent n'a pas produit de lettre au bon format, même après une correction. Clique sur Reprendre pour relancer.";
 
@@ -162,12 +164,34 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   }
 
   // JSON invalide : une seule correction par conversation (une reprise après échec repart d'une nouvelle conversation).
+  // Le début de la réponse est gardé avec les erreurs (AgentRun.error), pour comprendre un format inattendu.
+  const diagnosis = `${issues ?? "Invalid answer"}\n\nRéponse reçue (début) :\n${message.content.slice(0, 3000)}`;
   const corrections = await db.agentRun.count({ where: { threadId: run.threadId, kind: "CORRECTION" } });
-  if (corrections > 0) return fail("FAILED", INVALID_AFTER_CORRECTION, issues);
-  if (!(await claim({ status: "SUCCESS", error: issues }))) return { type: "run", runId: run.id };
-  const started = await client.sendMessage(run.threadId, agentCorrectionMessage(issues ?? "Invalid answer"));
+  if (corrections > 0) return fail("FAILED", INVALID_AFTER_CORRECTION, diagnosis);
+  if (!(await claim({ status: "SUCCESS", error: diagnosis }))) return { type: "run", runId: run.id };
+  let started;
+  try {
+    started = await client.sendMessage(run.threadId, agentCorrectionMessage(issues ?? "Invalid answer"));
+  } catch (error) {
+    console.error("Correction Cominty :", error);
+    const reason = error instanceof ComintyError ? ` (${error.message})` : "";
+    await db.letter.update({ where: { id: run.letterId }, data: { status: "FAILED", error: `${CORRECTION_FAILED}${reason}` } });
+    return { type: "failed", error: `${CORRECTION_FAILED}${reason}` };
+  }
   const next = await db.agentRun.create({ data: { letterId: run.letterId, threadId: started.threadId, messageId: started.messageId, kind: "CORRECTION" } });
   return { type: "next", runId: next.id };
+}
+
+/**
+ * Erreur inattendue pendant le suivi (réponse illisible de Cominty, base...) : la lettre passe en échec reprenable,
+ * sinon la page relancerait l'agent toute seule au prochain affichage (et dépenserait des crédits).
+ * Une exécution encore RUNNING est conservée : « Reprendre » la suit au lieu d'en relancer une.
+ */
+export async function markFollowFailure(letterId: string, error: unknown): Promise<string> {
+  console.error("Suivi de l'agent :", error);
+  const message = error instanceof ComintyError || error instanceof AgentRunError ? error.message : FOLLOW_FAILED;
+  await db.letter.updateMany({ where: { id: letterId, status: { in: ["DRAFT", "NEEDS_INPUT"] } }, data: { status: "FAILED", error: message } });
+  return message;
 }
 
 /** État final d'une exécution déjà terminée, lu en base (rechargement de la page, second onglet). */

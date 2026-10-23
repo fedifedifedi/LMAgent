@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { agentLetterMessage, agentReplySchema, agentSourceIds, parseAgentReply } from "@/lib/agent/agent-reply";
 import { eventLabel } from "@/lib/agent/agent-labels";
-import { ComintyStreamError } from "@/lib/cominty/errors";
+import { ComintyError, ComintyStreamError } from "@/lib/cominty/errors";
 import { createMockComintyClient, mockReadyReply, MOCK_QUESTION, type AgentClient } from "@/lib/cominty/mock-client";
 import type { ComintyEvent, ComintyMessage } from "@/lib/cominty/schemas";
 import type { StreamItem } from "@/lib/cominty/stream";
@@ -13,7 +13,7 @@ import { setupTestDatabase } from "../helpers/test-db";
 
 await setupTestDatabase();
 const { db } = await import("@/lib/db");
-const { answerAgentRun, cancelAgentRun, followAgentRun, startAgentRun, BUDGET_MESSAGE, CANCELLED_MESSAGE } = await import("@/lib/letters/agent-run");
+const { answerAgentRun, cancelAgentRun, followAgentRun, markFollowFailure, startAgentRun, BUDGET_MESSAGE, CANCELLED_MESSAGE } = await import("@/lib/letters/agent-run");
 const { getLetterView } = await import("@/lib/letters/view");
 const { createProfile } = await import("@/lib/repositories/profiles");
 type AgentStreamEvent = import("@/lib/letters/agent-run").AgentStreamEvent;
@@ -133,6 +133,27 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     const events = await follow(await startAgentRun(letter.id, client), client);
     expect(events.at(-1)?.type).toBe("failed");
     expect(sent).toHaveLength(2);
+    expect((await db.letter.findUniqueOrThrow({ where: { id: letter.id } })).status).toBe("FAILED");
+  });
+
+  test("correction impossible à envoyer : lettre en échec reprenable (pas de relance automatique) et réponse gardée", async () => {
+    const { client } = scriptedClient([{ content: '{"score":88,"cover_letter":{"text":"…"}}' }]);
+    client.sendMessage = async () => {
+      throw new ComintyError("Cominty injoignable.");
+    };
+    const letter = await newLetter();
+    const runId = await startAgentRun(letter.id, client);
+    const events = await follow(runId, client);
+    expect(events.at(-1)?.type).toBe("failed");
+    const saved = await db.letter.findUniqueOrThrow({ where: { id: letter.id } });
+    expect(saved.status).toBe("FAILED");
+    expect(saved.error).toContain("Cominty injoignable.");
+    expect((await db.agentRun.findUniqueOrThrow({ where: { id: runId } })).error).toContain("cover_letter");
+  });
+
+  test("erreur inattendue pendant le suivi : lettre en échec, message lisible", async () => {
+    const letter = await newLetter();
+    expect(await markFollowFailure(letter.id, new Error("ZodError: messages expected array"))).toContain("Réponse inattendue de Cominty");
     expect((await db.letter.findUniqueOrThrow({ where: { id: letter.id } })).status).toBe("FAILED");
   });
 
