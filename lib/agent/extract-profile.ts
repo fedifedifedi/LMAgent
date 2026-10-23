@@ -8,7 +8,9 @@ export const EXTRACT_PROFILE_SYSTEM = `You extract a candidate profile from a CV
 Rules:
 - Copy, do not write. Use only information explicitly present in the CV. If a field is not in the CV, leave it out. Never guess, infer or complete.
 - Free text (titles, achievements, summary) stays in the language of the CV and as close to its wording as possible.
-- Dates: exactly as precise as written. "2022" becomes "2022"; "mars 2023" becomes "2023-03". Never add a month or a day that is not written. A current position ("aujourd'hui", "present", "en cours") has end = null.
+- Dates: exactly as precise as written. "2022" becomes "2022"; "mars 2023" becomes "2023-03". Never add a month or a day that is not written. A current position ("aujourd'hui", "present", "en cours") has end = null. A range ("mi-janvier / début février 2027") keeps only the certain part ("2027").
+- headline: the professional title only, without availability, contract type or date.
+- availability.durationMonths: an integer only when a single duration is written; a range ("4 à 6 mois") leaves it out.
 - summary: only if the CV contains its own summary, profile or tagline section; copy it. Otherwise leave summary out. Do not summarize the CV yourself.
 - availability: only what the CV states (contract sought, duration, start date, mobility, remote work). Leave out anything not written.
 - Language levels: use a CEFR level or "native" only when the CV states it or uses an unambiguous equivalent ("langue maternelle" = native, "bilingue" = C2). Otherwise leave the level out.
