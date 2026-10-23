@@ -19,13 +19,20 @@ function elapsed(from: string, at: string) {
 }
 
 /** Étapes de l'agent Cominty en direct : une ligne par étape, mise à jour au fil du flux. */
-export function AgentTimeline({ steps, phase }: { steps: TimelineStep[]; phase: AgentPhase }) {
+export function AgentTimeline({ steps, phase, replay = false }: { steps: TimelineStep[]; phase: AgentPhase; replay?: boolean }) {
   // Origine des durées : l'horodatage le plus ancien (ceux de Cominty ne suivent pas l'ordre des étapes).
   const first = steps.reduce<string | undefined>((min, step) => (!min || step.at < min ? step.at : min), undefined);
   return (
     <section aria-label="Étapes de l'agent" className="flex flex-col gap-3 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Agent Cominty</h2>
+        <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+          Agent Cominty
+          {replay && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground" title="Démo sans code d'accès : aucun appel, aucun crédit">
+              Rejeu d&apos;un vrai run enregistré · aucun appel
+            </span>
+          )}
+        </h2>
         <span
           className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
             phase === "failed" ? "border-destructive text-destructive" : phase === "questions" ? "border-primary text-primary" : "text-muted-foreground"

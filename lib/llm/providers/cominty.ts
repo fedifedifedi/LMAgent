@@ -2,6 +2,7 @@ import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { createComintyClient, type ComintyClient } from "@/lib/cominty/client";
 import { readComintyConfig } from "@/lib/cominty/config";
 import { ComintyAuthError, ComintyConfigError, ComintyError, ComintyRateLimitError } from "@/lib/cominty/errors";
+import { guardedClient } from "@/lib/cominty/guard";
 import { extractJsonText } from "@/lib/cominty/json";
 import type { ComintyCost, ComintyEvent } from "@/lib/cominty/schemas";
 import { LLMConfigError, LLMRateLimitError, LLMResponseError } from "@/lib/llm/errors";
@@ -95,7 +96,8 @@ export function createComintyProvider(client: ComintyTaskClient = defaultClient(
 /** Client réel, configuré par COMINTY_* ; une variable manquante devient une LLMConfigError comme pour les autres providers. */
 export function defaultClient(env: Record<string, string | undefined>): ComintyTaskClient {
   try {
-    return createComintyClient(readComintyConfig(env));
+    // Protégé comme pour les lettres : plafond COMINTY_BUDGET_USD vérifié, coût enregistré (ComintyCharge).
+    return guardedClient(createComintyClient(readComintyConfig(env)), env);
   } catch (error) {
     throw toLLMError(error);
   }

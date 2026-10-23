@@ -145,6 +145,16 @@ model LlmCall {
   @@index([letterId])
 }
 
+/// Dépense réelle chez Cominty : une ligne par message facturé (événement result), quelle que soit la fonction
+/// (lettre, import du CV, résumé, correction, échec). Sa somme est comparée au plafond COMINTY_BUDGET_USD.
+model ComintyCharge {
+  messageId    String   @id
+  costUsd      Float
+  inputTokens  Int
+  outputTokens Int
+  createdAt    DateTime @default(now())
+}
+
 enum AgentRunKind {
   /// Premier message : profil, sources autorisées et offre.
   START

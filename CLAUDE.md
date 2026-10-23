@@ -150,6 +150,12 @@ Déploiement : Dockerfile + railway.json (volume /data pour SQLite, Chromium dan
 - Interface : étapes en direct (agent-timeline.tsx), questions en boutons (agent-questions.tsx ; « Autre… » ouvre un champ),
   Arrêter / Reprendre, score et ajustements du CV. Mention « CV envoyé à Cominty » sur la page d'import.
 - Import du CV et résumé : provider `cominty` de lib/llm (LLM_PROVIDER=cominty), relances dans la même conversation.
+- Protection des crédits (lib/cominty/guard.ts) : tout vrai appel exige le code d'accès (DEMO_ACCESS_CODE, page /acces,
+  cookie = empreinte sha256 ; toujours exigé en production) ; plafond COMINTY_BUDGET_USD (3 $ par défaut) vérifié avant
+  chaque message ; dépense = somme de ComintyCharge (une ligne par message facturé, via guardedClient). Client choisi par
+  lib/cominty/agent-client.ts : d'après l'id du message (replay- / mock- / réel) ou, au démarrage, l'accès et la démo.
+- Démo sans code : rejeu d'un vrai run enregistré (lib/demo/recorded-run.json, lib/cominty/replay-client.ts), même flux et
+  même affichage, aucun appel ; nouvelle lettre à chaque clic. Avec le code : la dernière lettre de démo est réutilisée.
 - Mock (défaut, tests, captures) : faux agent lib/cominty/mock-client.ts (une question puis la lettre). Test réel :
   npm run cominty:smoke (UN appel, max_steps 3) — TOUJOURS demander l'accord avant (crédits). max_steps par défaut : 3.
 

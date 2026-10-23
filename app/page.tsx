@@ -40,6 +40,9 @@ export default function Home() {
                 </Suspense>
                 {demoEnabled() && <DemoButton />}
               </div>
+              <Link href="/acces" className="-mt-3 text-sm text-muted-foreground underline-offset-2 hover:underline">
+                J&apos;ai un code d&apos;accès
+              </Link>
               <ul className="home-lede flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
                 {PROOFS.map((proof) => (
                   <li key={proof}>

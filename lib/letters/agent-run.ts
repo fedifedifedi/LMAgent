@@ -10,6 +10,7 @@ import {
   type CandidateAnswer,
 } from "@/lib/agent/agent-reply";
 import { ComintyError, ComintyStreamError } from "@/lib/cominty/errors";
+import { REPLAY_AGENT_ID } from "@/lib/cominty/replay-client";
 import type { AgentClient } from "@/lib/cominty/mock-client";
 import type { ComintyEvent, ComintyMessage, ComintyQuestion } from "@/lib/cominty/schemas";
 import { db } from "@/lib/db";
@@ -81,12 +82,17 @@ export async function startAgentRun(letterId: string, client: AgentClient): Prom
 }
 
 /** Envoie les réponses du candidat dans la conversation de l'agent ; renvoie l'exécution qui les traite. */
-export async function answerAgentRun(letterId: string, answers: CandidateAnswer[], client: AgentClient): Promise<string> {
+/** client : fixe, ou choisi d'après le message de l'agent qui a posé la question (rejeu, faux agent, vrai Cominty). */
+type ClientFor = AgentClient | ((messageId: string) => AgentClient | Promise<AgentClient>);
+const resolveClient = async (client: ClientFor, messageId: string) => (typeof client === "function" ? client(messageId) : client);
+
+export async function answerAgentRun(letterId: string, answers: CandidateAnswer[], clientFor: ClientFor): Promise<string> {
   const last = await db.agentRun.findFirst({ where: { letterId }, orderBy: { createdAt: "desc" } });
   if (!last || last.status !== "SUCCESS" || !last.questions) throw new AgentRunError("L'agent n'attend pas de réponse pour cette lettre.");
   const cleaned = answers.map((a) => ({ prompt: a.prompt.trim(), answer: a.answer.trim() })).filter((a) => a.answer);
   if (cleaned.length === 0) throw new AgentRunError("Choisis ou écris au moins une réponse.");
 
+  const client = await resolveClient(clientFor, last.messageId);
   const started = await client.sendMessage(last.threadId, agentAnswersMessage(cleaned));
   const run = await db.agentRun.create({ data: { letterId, threadId: started.threadId, messageId: started.messageId, kind: "ANSWER" } });
   await db.letter.update({ where: { id: letterId }, data: { status: "DRAFT", error: null } });
@@ -94,9 +100,10 @@ export async function answerAgentRun(letterId: string, answers: CandidateAnswer[
 }
 
 /** Arrête l'exécution en cours (côté Cominty aussi) ; la lettre devient reprenable. */
-export async function cancelAgentRun(letterId: string, client: AgentClient): Promise<void> {
+export async function cancelAgentRun(letterId: string, clientFor: ClientFor): Promise<void> {
   const run = await db.agentRun.findFirst({ where: { letterId, status: "RUNNING" } });
   if (!run) return;
+  const client = await resolveClient(clientFor, run.messageId);
   await client.cancel(run.messageId).catch((error) => console.error("Annulation Cominty :", error));
   await db.agentRun.updateMany({ where: { id: run.id, status: "RUNNING" }, data: { status: "CANCELLED", finishedAt: new Date() } });
   await db.letter.update({ where: { id: letterId }, data: { status: "FAILED", error: CANCELLED_MESSAGE } });
@@ -107,16 +114,18 @@ type Outcome = { type: "next"; runId: string } | AgentStreamEvent;
 /** Coût d'un tour de l'agent : une ligne LlmCall dès l'événement result (affichée dans « Détails de la génération »). */
 async function recordCost(run: AgentRun, event: Extract<ComintyEvent, { name: "result" }>, client: AgentClient) {
   const { cost } = event.data;
+  // Rejeu de la démo : tokens du run d'origine affichés, mais aucun coût (rien n'est appelé ni facturé).
+  const replay = client.agentId === REPLAY_AGENT_ID;
   await db.llmCall.create({
     data: {
       letterId: run.letterId,
       step: "AGENT_LETTER",
-      provider: client.agentId.startsWith("mock") ? "mock" : "cominty",
-      model: `agent:${client.agentId}`,
+      provider: replay ? "replay" : client.agentId.startsWith("mock") ? "mock" : "cominty",
+      model: replay ? "rejeu d'un vrai run Cominty" : `agent:${client.agentId}`,
       inputTokens: cost.input_tokens,
       outputTokens: cost.output_tokens,
       cacheReadTokens: cost.cached_tokens,
-      costUsd: cost.total,
+      costUsd: replay ? null : cost.total,
       attempts: 1,
       durationMs: Math.max(0, Date.now() - run.createdAt.getTime()),
       estimated: client.agentId.startsWith("mock"),

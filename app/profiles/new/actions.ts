@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { isComintyMode, requestHasAccess } from "@/lib/cominty/agent-client";
+import { ACCESS_REQUIRED_MESSAGE } from "@/lib/cominty/guard";
 import { CvInputError } from "@/lib/cv/extract-text";
 import { importCv, type CvInput } from "@/lib/cv/import";
 import { LLMError, LLMValidationError } from "@/lib/llm";
@@ -34,6 +36,9 @@ export async function importCvAction(_previous: ImportCvState, formData: FormDat
     if (typeof pasted !== "string" || !pasted.trim()) return { error: "Colle le texte de ton CV." };
     input = { kind: "text", text: pasted };
   }
+
+  // Mode Cominty : l'extraction est un appel payant, réservé aux visiteurs qui ont saisi le code d'accès.
+  if (isComintyMode() && !(await requestHasAccess())) return { error: ACCESS_REQUIRED_MESSAGE, text: typeof pasted === "string" ? pasted : undefined };
 
   let id: string;
   try {

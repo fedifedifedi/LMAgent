@@ -182,7 +182,14 @@ export function CvImportForm() {
       {state.error && (
         <Alert variant="destructive" aria-live="polite">
           <AlertTitle>Import impossible</AlertTitle>
-          <AlertDescription>{state.error}</AlertDescription>
+          <AlertDescription>
+            <p>{state.error}</p>
+            {state.error.includes("Code d'accès") && (
+              <a href="/acces" className="mt-1 inline-block underline underline-offset-2">
+                Saisir un code d&apos;accès
+              </a>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { suggestProfileSummary } from "@/lib/agent/profile-summary";
+import { isComintyMode, requestHasAccess } from "@/lib/cominty/agent-client";
+import { ACCESS_REQUIRED_MESSAGE } from "@/lib/cominty/guard";
 import { db } from "@/lib/db";
 import { LLMError } from "@/lib/llm";
 import type { LLMUsage } from "@/lib/llm/types";
@@ -56,6 +58,9 @@ export async function suggestSummaryAction(values: unknown, profileId?: string):
   // Le résumé actuel n'est pas transmis : la proposition repart des seuls faits du profil.
   const profileWithoutSummary = { ...draft.data, summary: undefined };
 
+  // Mode Cominty : appel payant, réservé aux visiteurs qui ont saisi le code d'accès.
+  if (isComintyMode() && !(await requestHasAccess())) return { error: ACCESS_REQUIRED_MESSAGE };
+
   let usage: LLMUsage | undefined;
   try {
     const summary = await suggestProfileSummary(profileWithoutSummary, { onUsage: (u) => (usage = u) });
@@ -75,6 +80,7 @@ export async function suggestSummaryAction(values: unknown, profileId?: string):
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           cacheReadTokens: usage.cacheReadTokens,
+          costUsd: usage.costUsd,
           attempts: usage.attempts,
           durationMs: usage.durationMs,
           estimated: usage.estimated ?? false,

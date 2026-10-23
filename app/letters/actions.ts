@@ -5,8 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { checkLetter } from "@/lib/agent/letter-checks";
 import { OfferAnalysisSchema, type ProfileMatch } from "@/lib/agent/schemas";
-import { getAgentClient } from "@/lib/cominty/agent-client";
+import { clientForMessage, clientForStart, isComintyMode, requestHasAccess } from "@/lib/cominty/agent-client";
 import { ComintyError } from "@/lib/cominty/errors";
+import { ACCESS_REQUIRED_MESSAGE, ComintyGuardError } from "@/lib/cominty/guard";
+import { REPLAY_PREFIX } from "@/lib/cominty/replay-client";
+import { DEMO_PROFILE_NAME } from "@/lib/demo";
 import { db } from "@/lib/db";
 import { AgentRunError, answerAgentRun, cancelAgentRun, startAgentRun } from "@/lib/letters/agent-run";
 import { Prisma } from "@/lib/generated/prisma/client";
@@ -148,7 +151,10 @@ export async function startAgentRunAction(letterId: unknown): Promise<RunResult>
   const id = z.string().min(1).safeParse(letterId);
   if (!id.success) return { error: "Lettre introuvable." };
   try {
-    return { runId: await startAgentRun(id.data, getAgentClient()) };
+    // Lettre de démo sans code d'accès : rejeu d'un vrai run enregistré (aucun appel). Sinon, vrai appel avec le code.
+    const letter = await db.letter.findUnique({ where: { id: id.data }, select: { profile: { select: { name: true } } } });
+    const client = clientForStart({ access: await requestHasAccess(), demo: letter?.profile.name === DEMO_PROFILE_NAME });
+    return { runId: await startAgentRun(id.data, client) };
   } catch (error) {
     const message = agentErrorMessage(error);
     await db.letter.updateMany({ where: { id: id.data, content: { equals: Prisma.DbNull } }, data: { status: "FAILED", error: message } });
@@ -165,7 +171,16 @@ export async function answerAgentAction(letterId: unknown, answers: unknown): Pr
   if (!id.success) return { error: "Lettre introuvable." };
   if (!parsed.success) return { error: "Réponse invalide." };
   try {
-    return { runId: await answerAgentRun(id.data, parsed.data, getAgentClient()) };
+    const access = await requestHasAccess();
+    const runId = await answerAgentRun(id.data, parsed.data, (messageId) => {
+      const client = clientForMessage(messageId);
+      // Répondre à un vrai agent relance un appel payant : code d'accès exigé, comme pour démarrer.
+      if (isComintyMode() && !messageId.startsWith("mock-") && !messageId.startsWith(REPLAY_PREFIX) && !access) {
+        throw new ComintyGuardError("access", ACCESS_REQUIRED_MESSAGE);
+      }
+      return client;
+    });
+    return { runId };
   } catch (error) {
     return { error: agentErrorMessage(error) };
   }
@@ -175,7 +190,7 @@ export async function answerAgentAction(letterId: unknown, answers: unknown): Pr
 export async function cancelAgentRunAction(letterId: unknown): Promise<ViewResult> {
   const id = z.string().min(1).safeParse(letterId);
   if (!id.success) return { error: "Lettre introuvable." };
-  await cancelAgentRun(id.data, getAgentClient());
+  await cancelAgentRun(id.data, (messageId) => clientForMessage(messageId));
   const view = await getLetterView(id.data);
   return view ? { view } : { error: "Lettre introuvable." };
 }

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { getAgentClient } from "@/lib/cominty/agent-client";
+import { clientForMessage } from "@/lib/cominty/agent-client";
 import { db } from "@/lib/db";
 import { followAgentRun, markFollowFailure, type AgentStreamEvent } from "@/lib/letters/agent-run";
 
@@ -10,7 +10,7 @@ import { followAgentRun, markFollowFailure, type AgentStreamEvent } from "@/lib/
 export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]/agent">) {
   const { id } = await ctx.params;
   const runId = request.nextUrl.searchParams.get("run");
-  const run = runId ? await db.agentRun.findUnique({ where: { id: runId }, select: { letterId: true } }) : null;
+  const run = runId ? await db.agentRun.findUnique({ where: { id: runId }, select: { letterId: true, messageId: true } }) : null;
   if (!run || run.letterId !== id) return Response.json({ error: "Exécution introuvable." }, { status: 404 });
 
   const encoder = new TextEncoder();
@@ -25,7 +25,8 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]
       };
       try {
         controller.enqueue(encoder.encode(": connecté\n\n"));
-        await followAgentRun(runId!, getAgentClient(), send, request.signal);
+        // Client choisi d'après le message : rejeu (démo), faux agent ou vrai Cominty protégé (plafond, coûts).
+        await followAgentRun(runId!, clientForMessage(run.messageId), send, request.signal);
       } catch (error) {
         // Jamais d'erreur brute (Zod, Prisma) à l'écran ; la lettre devient reprenable au lieu de se relancer seule.
         send({ type: "failed", error: await markFollowFailure(id, error) });

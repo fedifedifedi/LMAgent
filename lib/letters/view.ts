@@ -1,5 +1,6 @@
 import { CANDIDATE_ANSWERS_LABEL, CANDIDATE_ANSWERS_SOURCE, type AgentInsights } from "@/lib/agent/agent-reply";
 import type { LetterIssue } from "@/lib/agent/letter-checks";
+import { REPLAY_PREFIX } from "@/lib/cominty/replay-client";
 import type { ComintyQuestion } from "@/lib/cominty/schemas";
 import { EVENT_ORDER, timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
 import type { Critique, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
@@ -36,6 +37,8 @@ export type AgentState = {
   lastRunId: string | null;
   questions: ComintyQuestion[] | null;
   timeline: TimelineStep[];
+  /** Démo sans code d'accès : rejeu d'un vrai run enregistré, sans aucun appel. */
+  replay: boolean;
 };
 
 /** Tout ce que la page de la lettre affiche, sérialisable pour le navigateur. */
@@ -132,6 +135,7 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
       lastRunId: lastRun?.id ?? null,
       questions: letter.status === "NEEDS_INPUT" && lastRun?.questions ? (lastRun.questions as ComintyQuestion[]) : null,
       timeline: timelineOf(letter.agentRuns.flatMap((run) => run.events)),
+      replay: letter.agentRuns.some((run) => run.messageId.startsWith(REPLAY_PREFIX)),
     },
     insights: (letter.insights as AgentInsights | null) ?? null,
   };

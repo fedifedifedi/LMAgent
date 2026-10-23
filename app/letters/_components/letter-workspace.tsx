@@ -1,6 +1,7 @@
 "use client";
 
 import { useGSAP } from "@gsap/react";
+import Link from "next/link";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import { useEffect, useRef, useState } from "react";
@@ -325,7 +326,7 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
       </div>
     </header>
 
-    {showTimeline && <AgentTimeline steps={steps} phase={phase} />}
+    {showTimeline && <AgentTimeline steps={steps} phase={phase} replay={view.agent.replay} />}
 
     {phase === "questions" && questions && <AgentQuestions questions={questions} busy={answering} error={answerError} onSubmit={(answers) => void answer(answers)} />}
 
@@ -493,9 +494,16 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
             <AlertTitle>La génération s&apos;est arrêtée</AlertTitle>
             <AlertDescription>
               <p>{error}</p>
-              <Button type="button" size="sm" className="mt-2" onClick={() => void resume()}>
-                Reprendre
-              </Button>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <Button type="button" size="sm" onClick={() => void resume()}>
+                  Reprendre
+                </Button>
+                {error.includes("Code d'accès") && (
+                  <Link href="/acces" className="text-sm underline underline-offset-2">
+                    Saisir un code d&apos;accès
+                  </Link>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         )}

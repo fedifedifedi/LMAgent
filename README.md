@@ -149,14 +149,19 @@ et applique les migrations à chaque démarrage (`prisma migrate deploy`).
    |---|---|
    | `LLM_PROVIDER` | `cominty` (ou `mock` pour une démo sans crédit) |
    | `COMINTY_API_KEY`, `COMINTY_USER_ID`, `COMINTY_AGENT_ID` | identifiants de l'agent (platform.cominty.ai) |
+   | `DEMO_ACCESS_CODE` | code exigé pour tout vrai appel à Cominty (page `/acces`) |
+   | `COMINTY_BUDGET_USD` | plafond global de dépense (3 $ par défaut) |
    | `DEMO_ENABLED` | `0` pour masquer le bouton de démo |
 
    `PORT`, `CHROME_PATH`, `CHROME_NO_SANDBOX`, `PDF_RENDER_ORIGIN` et `DATABASE_URL` ont des valeurs par défaut dans
    l'image : inutile de les définir. Détail de toutes les variables : `.env.example`.
 4. **Domaine** (Settings → Networking → *Generate Domain*).
 
-> L'application n'a pas encore d'authentification : une URL publique permet à n'importe qui d'importer un CV et de
-> lancer l'agent sur tes crédits Cominty. Garde l'URL privée, ou utilise `LLM_PROVIDER=mock` pour une démo publique.
+> **Protection des crédits.** En production, tout vrai appel à Cominty exige le code d'accès (`DEMO_ACCESS_CODE`,
+> saisi sur `/acces`, gardé dans un cookie httpOnly qui ne contient que son empreinte), et un plafond global
+> (`COMINTY_BUDGET_USD`, 3 $ par défaut) bloque tout nouvel appel une fois atteint. Sans code, le bouton
+> « Essayer avec un profil de démo » rejoue un vrai run enregistré, avec le même affichage en direct et sans aucun appel.
+> Il n'y a toujours pas de comptes utilisateurs : les profils importés sont visibles par toute personne qui a l'URL.
 
 ## Structure
 
