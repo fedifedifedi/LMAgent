@@ -157,6 +157,28 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     expect((await db.letter.findUniqueOrThrow({ where: { id: letter.id } })).status).toBe("FAILED");
   });
 
+  test("flux réel enregistré : ids non uniques gérés, chaque étape finit cochée, ordre des étapes", async () => {
+    const recorded = (await Bun.file(new URL("../fixtures/cominty/needs-input.jsonl", import.meta.url)).text()).trim().split("\n").map((l) => JSON.parse(l));
+    const { parseStream } = await import("@/lib/cominty/stream");
+    const client: AgentClient = {
+      agentId: "replay",
+      startChat: async () => ({ threadId: `t-${crypto.randomUUID()}`, messageId: `m-${crypto.randomUUID()}` }),
+      sendMessage: async () => ({ threadId: "t", messageId: `m-${crypto.randomUUID()}` }),
+      stream: async function* () {
+        yield* parseStream((async function* () { yield* recorded; })());
+      },
+      cancel: async () => { throw new Error("non utilisé"); },
+    };
+    const letter = await newLetter();
+    const runId = await startAgentRun(letter.id, client);
+    const events = await follow(runId, client);
+    expect(events.at(-1)?.type).toBe("questions");
+    const view = (await getLetterView(letter.id))!;
+    expect(view.agent.timeline.map((s) => s.status)).toEqual(["success", "success", "success", "success", "success"]);
+    expect(view.agent.timeline[0].label).toBe("Mise en route de l'agent");
+    expect(view.agent.timeline.at(-1)?.label).toBe("Réponse de l'agent");
+  });
+
   test("crédits épuisés : message clair", async () => {
     const { client } = scriptedClient([{ status: "failed", error_code: "budget_exhausted" }]);
     const letter = await newLetter();

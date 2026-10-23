@@ -1,7 +1,7 @@
 import { CANDIDATE_ANSWERS_LABEL, CANDIDATE_ANSWERS_SOURCE, type AgentInsights } from "@/lib/agent/agent-reply";
 import type { LetterIssue } from "@/lib/agent/letter-checks";
 import type { ComintyQuestion } from "@/lib/cominty/schemas";
-import { timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
+import { EVENT_ORDER, timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
 import type { Critique, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
 import type { StoredLetter } from "@/lib/letters/stored";
 import { DEFAULT_TEMPLATE, isLetterTemplate, type LetterTemplate } from "@/lib/letters/templates";
@@ -79,7 +79,7 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
     include: {
       profile: true,
       llmCalls: { orderBy: { createdAt: "asc" } },
-      agentRuns: { orderBy: { createdAt: "asc" }, include: { events: { orderBy: [{ at: "asc" }, { id: "asc" }] } } },
+      agentRuns: { orderBy: { createdAt: "asc" }, include: { events: { orderBy: EVENT_ORDER } } },
     },
   });
   if (!letter) return null;

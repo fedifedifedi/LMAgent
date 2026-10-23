@@ -33,6 +33,16 @@ export class AgentRunError extends Error {}
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
+/**
+ * Les ids d'événements Cominty ne sont PAS uniques : ce sont des positions dans le flux (« 0-0 » pour les deux phases
+ * de waiting_for_start, un même id pour plusieurs événements), utiles seulement pour la reprise (last-event-id).
+ * Un événement est identifié par id + étape (correlation_id) + nom + phase.
+ */
+export const eventKey = (event: Pick<ComintyEvent, "id" | "correlation_id" | "name" | "status">) => `${event.id}|${event.correlation_id}|${event.name}|${event.status}`;
+
+/** Ordre d'affichage : l'étape (correlation_id) ; les horodatages de Cominty ne sont pas monotones. */
+export const EVENT_ORDER = [{ correlationId: "asc" as const }, { at: "asc" as const }, { id: "asc" as const }];
+
 export const CANCELLED_MESSAGE = "Génération annulée.";
 export const BUDGET_MESSAGE = "Crédits Cominty épuisés : recharge ton compte sur platform.cominty.ai, puis clique sur Reprendre.";
 const CORRECTION_FAILED = "L'agent a répondu dans un format inattendu et la demande de correction n'a pas pu être envoyée. Clique sur Reprendre.";
@@ -213,7 +223,7 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
   let currentId: string | undefined = runId;
   while (currentId) {
     const run: (AgentRun & { events: Array<{ eventId: string; runId: string; correlationId: number; label: string; status: string; at: Date }> }) | null =
-      await db.agentRun.findUnique({ where: { id: currentId }, include: { events: { orderBy: [{ at: "asc" }, { id: "asc" }] } } });
+      await db.agentRun.findUnique({ where: { id: currentId }, include: { events: { orderBy: EVENT_ORDER } } });
     if (!run) throw new AgentRunError("Exécution introuvable.");
     for (const event of run.events) emit({ type: "step", step: stepOf(event) });
 
@@ -230,10 +240,11 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
             break;
           }
           const { event } = item;
-          if (known.has(event.id)) continue;
-          known.add(event.id);
+          const key = eventKey(event);
+          if (known.has(key)) continue;
+          known.add(key);
           const saved = await db.agentEvent.create({
-            data: { runId: run.id, eventId: event.id, correlationId: event.correlation_id, name: event.name, status: event.status, label: eventLabel(event), at: new Date(event.at) },
+            data: { runId: run.id, eventId: key, correlationId: event.correlation_id, name: event.name, status: event.status, label: eventLabel(event), at: new Date(event.at) },
           });
           await db.agentRun.update({ where: { id: run.id }, data: { lastEventId: event.id } });
           if (event.name === "result") await recordCost(run, event, client);

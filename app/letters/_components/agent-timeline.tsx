@@ -20,7 +20,8 @@ function elapsed(from: string, at: string) {
 
 /** Étapes de l'agent Cominty en direct : une ligne par étape, mise à jour au fil du flux. */
 export function AgentTimeline({ steps, phase }: { steps: TimelineStep[]; phase: AgentPhase }) {
-  const first = steps[0]?.at;
+  // Origine des durées : l'horodatage le plus ancien (ceux de Cominty ne suivent pas l'ordre des étapes).
+  const first = steps.reduce<string | undefined>((min, step) => (!min || step.at < min ? step.at : min), undefined);
   return (
     <section aria-label="Étapes de l'agent" className="flex flex-col gap-3 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
