@@ -113,6 +113,23 @@ describe("provider cominty", () => {
     expect(run(client)).rejects.toBeInstanceOf(LLMValidationError);
   });
 
+  test("réponse réelle : JSON dans un bloc de code suivi de notes Markdown → extrait et validé du premier coup", async () => {
+    const real = '```json\n{"summary":"Étudiante en data science {Bordeaux}."}\n```\n\n**Extraction notes**\n\n| Field | Decision |\n|---|---|\n| summary | copied |';
+    const { client, calls } = fakeClient([message(real)]);
+    const result = await run(client);
+    expect(result.data.summary).toBe("Étudiante en data science {Bordeaux}.");
+    expect(calls.filter((c) => c.kind === "sendMessage")).toHaveLength(0);
+    expect(stripCodeFence('Voici le profil : {"a":{"b":"}"}} et une note.')).toBe('{"a":{"b":"}"}}');
+  });
+
+  test("réponse illisible du client Cominty (ZodError) : erreur lisible", async () => {
+    const zod = Object.assign(new Error("messages: expected array"), { name: "ZodError" });
+    const { client } = fakeClient([zod]);
+    const error = await run(client).catch((e) => e);
+    expect(error).toBeInstanceOf(LLMResponseError);
+    expect(error.message).toContain("Réponse inattendue de Cominty");
+  });
+
   test("helpers : bloc de code retiré, mention du fichier joint", () => {
     expect(stripCodeFence('```json\n{"a":1}\n```')).toBe('{"a":1}');
     expect(stripCodeFence('{"a":1}')).toBe('{"a":1}');

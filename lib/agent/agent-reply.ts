@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { extractJsonText } from "@/lib/cominty/json";
 import { letterSchema, OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { buildSourceCatalog, sourceIds } from "@/lib/agent/sources";
 import type { Profile } from "@/lib/schemas/profile";
@@ -73,7 +74,7 @@ export type AgentInsights = {
 
 /** Lit le texte de l'agent : JSON (bloc de code toléré) validé par le schéma ; sinon les erreurs, pour la correction. */
 export function parseAgentReply(content: string, ids: [string, ...string[]]): { ok: true; reply: AgentReply } | { ok: false; issues: string } {
-  const text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const text = extractJsonText(content);
   let json: unknown;
   try {
     json = JSON.parse(text);

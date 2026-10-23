@@ -1,6 +1,7 @@
 import { createComintyClient, type ComintyClient } from "@/lib/cominty/client";
 import { readComintyConfig } from "@/lib/cominty/config";
 import { ComintyAuthError, ComintyConfigError, ComintyError, ComintyRateLimitError } from "@/lib/cominty/errors";
+import { extractJsonText } from "@/lib/cominty/json";
 import type { ComintyCost, ComintyEvent } from "@/lib/cominty/schemas";
 import { LLMConfigError, LLMRateLimitError, LLMResponseError } from "@/lib/llm/errors";
 import type { Attachment, CompletionRequest, LLMProvider } from "@/lib/llm/types";
@@ -32,10 +33,8 @@ export function taskMessage(request: Pick<CompletionRequest, "name" | "system" |
   ].join("\n\n");
 }
 
-/** Retire un éventuel bloc de code Markdown autour du JSON. */
-export function stripCodeFence(text: string): string {
-  return text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-}
+/** JSON de la réponse, même entouré d'un bloc de code ou suivi de notes (cf. lib/cominty/json.ts). */
+export const stripCodeFence = extractJsonText;
 
 /**
  * Provider « cominty » : chaque generateObject devient un tour de l'agent managé Cominty. La validation Zod et
@@ -105,5 +104,7 @@ function toLLMError(error: unknown): unknown {
   if (error instanceof ComintyRateLimitError) return new LLMRateLimitError("cominty", error.retryAfterSeconds, error.message, { cause: error });
   if (error instanceof ComintyAuthError || error instanceof ComintyConfigError) return new LLMConfigError(error.message, { cause: error });
   if (error instanceof ComintyError) return new LLMResponseError(error.message, { cause: error });
+  // Réponse de Cominty à une forme inattendue (schéma Zod du client) : message lisible, détail dans la cause.
+  if (error instanceof Error && error.name === "ZodError") return new LLMResponseError("Réponse inattendue de Cominty : réessaie dans un instant.", { cause: error });
   return error;
 }
