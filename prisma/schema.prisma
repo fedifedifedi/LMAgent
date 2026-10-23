@@ -145,6 +145,27 @@ model LlmCall {
   @@index([letterId])
 }
 
+enum CvImportJobStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// Extraction d'un CV en arrière-plan : l'action répond tout de suite, la page suit le statut (pas de requête HTTP
+/// tenue ouverte pendant que l'agent travaille). requestKey (générée par le navigateur) rend l'envoi idempotent :
+/// une requête répétée (proxy, double clic) réutilise le même job, donc une seule session Cominty par import.
+model CvImportJob {
+  id         String            @id @default(cuid())
+  requestKey String            @unique
+  status     CvImportJobStatus @default(PENDING)
+  /// Message lisible en cas d'échec (délai dépassé, réponse illisible, plafond atteint...).
+  error      String?
+  /// Import créé quand l'extraction réussit.
+  importId   String?
+  createdAt  DateTime          @default(now())
+  finishedAt DateTime?
+}
+
 /// Dépense réelle chez Cominty : une ligne par message facturé (événement result), quelle que soit la fonction
 /// (lettre, import du CV, résumé, correction, échec). Sa somme est comparée au plafond COMINTY_BUDGET_USD.
 model ComintyCharge {

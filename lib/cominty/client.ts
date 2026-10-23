@@ -8,7 +8,22 @@ export const DEFAULT_MAX_STEPS = 3;
 /** Au plus 5 fichiers par message (limite de l'API). */
 export const MAX_FILES_PER_MESSAGE = 5;
 
-export type SendOptions = { fileIds?: string[]; maxSteps?: number; signal?: AbortSignal };
+/** Capacités de la conversation (figées au démarrage), au format de l'API : { web: { activation: "never" }, … }. */
+export type Capabilities = Partial<Record<"web" | "indexed_documents" | "mcp" | "skills" | "image_generation" | "video_generation" | "music_generation" | "memory", { activation: "always" | "on_request" | "never" }>>;
+
+/** Toutes les capacités coupées : une tâche de recopie (texte → JSON) n'a besoin d'aucun outil. */
+export const NO_CAPABILITIES: Capabilities = {
+  web: { activation: "never" },
+  indexed_documents: { activation: "never" },
+  mcp: { activation: "never" },
+  skills: { activation: "never" },
+  image_generation: { activation: "never" },
+  video_generation: { activation: "never" },
+  music_generation: { activation: "never" },
+  memory: { activation: "never" },
+};
+
+export type SendOptions = { fileIds?: string[]; maxSteps?: number; capabilities?: Capabilities; signal?: AbortSignal };
 export type StartedMessage = { threadId: string; messageId: string };
 
 export type ComintyClient = ReturnType<typeof createComintyClient>;
@@ -44,7 +59,7 @@ export function createComintyClient(config: ComintyConfig = readComintyConfig(),
     if (!Number.isInteger(maxSteps) || maxSteps < 1) throw new ComintyError("maxSteps doit être un entier ≥ 1.");
     return {
       message: { content, ...(options.fileIds?.length ? { file_ids: options.fileIds } : {}) },
-      options: { agent_id: config.agentId, user_id: config.userId, max_steps: maxSteps },
+      options: { agent_id: config.agentId, user_id: config.userId, max_steps: maxSteps, ...(options.capabilities ? { capabilities: options.capabilities } : {}) },
     };
   }
 

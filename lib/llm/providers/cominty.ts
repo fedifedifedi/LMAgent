@@ -1,5 +1,5 @@
 import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
-import { createComintyClient, type ComintyClient } from "@/lib/cominty/client";
+import { createComintyClient, NO_CAPABILITIES, type ComintyClient } from "@/lib/cominty/client";
 import { readComintyConfig } from "@/lib/cominty/config";
 import { ComintyAuthError, ComintyConfigError, ComintyError, ComintyRateLimitError } from "@/lib/cominty/errors";
 import { guardedClient } from "@/lib/cominty/guard";
@@ -9,7 +9,17 @@ import { LLMConfigError, LLMRateLimitError, LLMResponseError } from "@/lib/llm/e
 import type { Attachment, CompletionRequest, LLMProvider } from "@/lib/llm/types";
 
 /** Sous-ensemble du client utilisé ici (remplaçable par un faux client dans les tests). */
-export type ComintyTaskClient = Pick<ComintyClient, "agentId" | "startChat" | "sendMessage" | "waitForMessage" | "uploadFile">;
+export type ComintyTaskClient = Pick<ComintyClient, "agentId" | "startChat" | "sendMessage" | "waitForMessage" | "uploadFile"> & Partial<Pick<ComintyClient, "cancel">>;
+
+/**
+ * Réglages d'une tâche JSON. Texte (CV en PDF texte, résumé) : UN tour, aucun outil — l'agent range des informations
+ * déjà lues par le serveur. Fichier (image, PDF scanné) : quelques tours pour que l'agent lise le document, sans web.
+ */
+export const TEXT_TASK = { maxSteps: 1, capabilities: NO_CAPABILITIES } as const;
+export const FILE_TASK = {
+  maxSteps: 3,
+  capabilities: { web: { activation: "never" }, image_generation: { activation: "never" }, video_generation: { activation: "never" }, music_generation: { activation: "never" }, memory: { activation: "never" } },
+} as const;
 
 /** Réponse brute conservée entre les tentatives : la relance continue la même conversation. */
 type ComintyNative = { threadId: string };
@@ -56,19 +66,27 @@ export function createComintyProvider(client: ComintyTaskClient = defaultClient(
         if (event.name === "result") cost = event.data.cost;
       };
 
+      const { signal } = request;
+      let started: { threadId: string; messageId: string } | undefined;
+      // Délai dépassé : on arrête aussi la réponse chez Cominty (pas de session qui continue toute seule).
+      const onAbort = () => {
+        if (started && client.cancel) void client.cancel(started.messageId).catch(() => undefined);
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
       try {
-        let started;
+        const task = request.attachments?.length ? FILE_TASK : TEXT_TASK;
         if (native?.threadId) {
-          started = await client.sendMessage(native.threadId, request.turns.at(-1)?.text ?? "");
+          started = await client.sendMessage(native.threadId, request.turns.at(-1)?.text ?? "", { maxSteps: task.maxSteps, signal });
         } else {
           const fileIds = [];
           for (const [index, file] of (request.attachments ?? []).entries()) {
-            fileIds.push(await client.uploadFile(file.data, `cv-${index + 1}.${EXTENSIONS[file.mimeType]}`, file.mimeType));
+            fileIds.push(await client.uploadFile(file.data, `cv-${index + 1}.${EXTENSIONS[file.mimeType]}`, file.mimeType, signal));
           }
-          started = await client.startChat(taskMessage(request, fileIds.length > 0), { fileIds });
+          started = await client.startChat(taskMessage(request, fileIds.length > 0), { fileIds, ...task, signal });
         }
+        if (signal?.aborted) onAbort();
 
-        const message = await client.waitForMessage(started.messageId, { onEvent });
+        const message = await client.waitForMessage(started.messageId, { onEvent, signal });
         if (message.status !== "success") {
           const reason = message.error_code ? ` (${message.error_code})` : "";
           throw new LLMResponseError(`L'agent Cominty n'a pas terminé sa réponse : statut ${message.status}${reason}.`);
@@ -87,7 +105,10 @@ export function createComintyProvider(client: ComintyTaskClient = defaultClient(
           native: { threadId: started.threadId } satisfies ComintyNative,
         };
       } catch (error) {
+        if (signal?.aborted) throw new LLMResponseError("Délai dépassé : l'agent Cominty n'a pas répondu à temps.", { cause: error });
         throw toLLMError(error);
+      } finally {
+        signal?.removeEventListener("abort", onAbort);
       }
     },
   };

@@ -5,7 +5,8 @@ import type { ComintyEvent, ComintyMessage } from "@/lib/cominty/schemas";
 import { LLMConfigError, LLMRateLimitError, LLMResponseError, LLMValidationError } from "@/lib/llm/errors";
 import { generateObject } from "@/lib/llm/generate";
 import { getProvider } from "@/lib/llm";
-import { createComintyProvider, stripCodeFence, taskMessage, type ComintyTaskClient } from "@/lib/llm/providers/cominty";
+import { NO_CAPABILITIES } from "@/lib/cominty/client";
+import { createComintyProvider, FILE_TASK, stripCodeFence, taskMessage, type ComintyTaskClient } from "@/lib/llm/providers/cominty";
 
 const OUTPUT = { name: "profile_summary", schema: ProfileSummarySchema };
 
@@ -84,9 +85,42 @@ describe("provider cominty", () => {
     expect(result.usage.costUsd).toBeCloseTo(0.1, 6);
     expect(calls.map((c) => c.kind)).toEqual(["uploadFile", "startChat", "waitForMessage", "sendMessage", "waitForMessage"]);
     expect(calls[0].args.slice(1)).toEqual(["cv-1.png", "image/png"]);
-    expect(calls[1].args[1]).toEqual({ fileIds: ["file-1"] });
+    expect(calls[1].args[1]).toMatchObject({ fileIds: ["file-1"], maxSteps: 3 });
     expect(calls[3].args[0]).toBe("thread-1");
     expect(calls[3].args[1]).toContain("does not match the required JSON schema");
+  });
+
+  test("texte seul (CV en PDF texte, résumé) : un tour et aucun outil ; fichier : 3 tours, sans web", async () => {
+    const text = fakeClient([message('{"summary":"Ok."}')]);
+    await run(text.client);
+    expect(text.calls[0].args[1]).toMatchObject({ maxSteps: 1, capabilities: NO_CAPABILITIES });
+    expect(Object.values(NO_CAPABILITIES).every((c) => c?.activation === "never")).toBe(true);
+
+    const file = fakeClient([message('{"summary":"Ok."}')]);
+    await run(file.client, { attachments: [{ mimeType: "application/pdf", data: new Uint8Array([1]) }] });
+    expect(file.calls[1].args[1]).toMatchObject({ maxSteps: FILE_TASK.maxSteps, capabilities: { web: { activation: "never" } } });
+  });
+
+  test("délai dépassé : la réponse en cours est annulée chez Cominty, erreur « Délai dépassé »", async () => {
+    const cancelled: string[] = [];
+    const client: ComintyTaskClient = {
+      agentId: "agent-test",
+      startChat: async () => ({ threadId: "t", messageId: "m-lent" }),
+      sendMessage: async () => ({ threadId: "t", messageId: "m2" }),
+      uploadFile: async () => "f",
+      waitForMessage: (_id, options) =>
+        new Promise((_, reject) => options?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))),
+      cancel: async (id) => {
+        cancelled.push(id);
+        return message("", { status: "cancelled" });
+      },
+    };
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 20);
+    const error = await generateObject({ output: OUTPUT, system: "s", prompt: "p", provider: createComintyProvider(client), maxAttempts: 1, signal: controller.signal }).catch((e) => e);
+    expect(error).toBeInstanceOf(LLMResponseError);
+    expect(error.message).toContain("Délai dépassé");
+    expect(cancelled).toEqual(["m-lent"]);
   });
 
   test("question de l'agent au lieu d'une réponse : erreur explicite", async () => {

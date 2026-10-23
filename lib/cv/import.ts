@@ -7,7 +7,7 @@ import { createCvImport } from "@/lib/repositories/cv-imports";
 
 export type CvInput = { kind: "file"; name: string; bytes: Uint8Array } | { kind: "text"; text: string };
 
-type Prepared = { source: CvSource; readMode: CvReadMode; text: string | null; content: CvSourceContent };
+export type PreparedCv = { source: CvSource; readMode: CvReadMode; text: string | null; content: CvSourceContent };
 
 const megabytes = (bytes: number) => `${bytes / 1024 / 1024} Mo`;
 
@@ -15,7 +15,7 @@ const megabytes = (bytes: number) => `${bytes / 1024 / 1024} Mo`;
  * Texte collé → texte. PDF avec texte → texte (unpdf). PDF scanné ou image → lecture native par le modèle.
  * Le type est déterminé par les octets du fichier, pas par son extension.
  */
-async function prepare(input: CvInput): Promise<Prepared> {
+export async function prepareCv(input: CvInput): Promise<PreparedCv> {
   if (input.kind === "text") {
     const text = cvTextFromPaste(input.text);
     return { source: "TEXT", readMode: "TEXT", text, content: { text } };
@@ -41,12 +41,20 @@ async function prepare(input: CvInput): Promise<Prepared> {
 
 /** CV → brouillon LLM → CvImport persisté. Les erreurs (CvInputError, LLMError) remontent telles quelles. */
 export async function importCv(input: CvInput, options: { provider?: LLMProvider } = {}): Promise<{ id: string }> {
-  const prepared = await prepare(input);
+  return extractAndSave(await prepareCv(input), input.kind === "file" ? input.name : undefined, options);
+}
+
+/** Extraction d'un CV déjà préparé (texte lu par le serveur, ou fichier pour la lecture native), puis CvImport. */
+export async function extractAndSave(
+  prepared: PreparedCv,
+  sourceName: string | undefined,
+  options: { provider?: LLMProvider; maxAttempts?: number; signal?: AbortSignal } = {},
+): Promise<{ id: string }> {
   const result = await extractProfile(prepared.content, options);
   return createCvImport({
     source: prepared.source,
     readMode: prepared.readMode,
-    sourceName: input.kind === "file" ? input.name : undefined,
+    sourceName,
     text: prepared.text,
     draft: result.data,
     degraded: result.degraded,

@@ -27,7 +27,7 @@ export type CvSourceContent = { text: string } | { file: Attachment };
 /** Extraction d'un CV (texte, ou fichier lu nativement) vers un brouillon de profil. Recopie structurée : réflexion basse. */
 export function extractProfile(
   source: CvSourceContent,
-  options: { provider?: LLMProvider } = {},
+  options: { provider?: LLMProvider; maxAttempts?: number; signal?: AbortSignal } = {},
 ): Promise<ExtractProfileResult> {
   const native = "file" in source;
   return generateObject({
@@ -37,5 +37,7 @@ export function extractProfile(
     attachments: native ? [source.file] : undefined,
     reasoning: "low",
     provider: options.provider,
+    maxAttempts: options.maxAttempts,
+    signal: options.signal,
   });
 }

@@ -45,6 +45,8 @@ export type CompletionRequest = {
   system: string;
   turns: ConversationTurn[];
   maxOutputTokens: number;
+  /** Abandon demandé par l'appelant (délai dépassé). */
+  signal?: AbortSignal;
 };
 
 export type Completion = {

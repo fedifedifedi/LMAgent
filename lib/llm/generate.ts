@@ -15,6 +15,10 @@ export type GenerateObjectRequest<T extends z.ZodObject, L extends z.ZodType> = 
   maxOutputTokens?: number;
   reasoning?: ReasoningLevel;
   attachments?: Attachment[];
+  /** Nombre maximal d'appels (MAX_ATTEMPTS par défaut). 1 : pas de relance, schéma tolérant en dernier recours. */
+  maxAttempts?: number;
+  /** Abandon (délai dépassé) : transmis au provider, qui arrête aussi la réponse en cours chez lui. */
+  signal?: AbortSignal;
   /** Appelé une fois par appel, succès ou échec de validation, avec la consommation cumulée. */
   onUsage?: (usage: LLMUsage) => void;
 };
@@ -78,7 +82,8 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
   let lastIssues = "";
   let lastJson: { value: unknown } | undefined;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  const maxAttempts = Math.max(1, request.maxAttempts ?? MAX_ATTEMPTS);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const completion = await provider.complete({
       name: output.name,
       jsonSchema,
@@ -87,6 +92,7 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
       maxOutputTokens: request.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
       reasoning: request.reasoning,
       attachments: request.attachments,
+      signal: request.signal,
     });
 
     usage.attempts = attempt;
@@ -112,6 +118,7 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
       lastIssues = json.error;
     }
 
+    if (attempt === maxAttempts) break;
     turns.push({ role: "assistant", text: completion.text, native: completion.native });
     turns.push({ role: "user", text: feedbackMessage(lastIssues) });
   }
