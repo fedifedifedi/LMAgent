@@ -14,7 +14,8 @@ describe("configuration (LLM_PROVIDER)", () => {
     for (const old of ["gemini", "anthropic", "openai"]) {
       expect(() => readLLMConfig({ LLM_PROVIDER: old })).toThrow(LLMConfigError);
     }
-    expect(() => readLLMConfig({ LLM_PROVIDER: "gemini" })).toThrow(/cominty/);
+    expect(() => readLLMConfig({ LLM_PROVIDER: "gemini" })).toThrow(/LLM_PROVIDER vaut « gemini »/);
+    expect(() => readLLMConfig({ LLM_PROVIDER: "gemini" })).toThrow(/LLM_PROVIDER=cominty/);
   });
 
   test("cominty : configuration propre (COMINTY_*), pas de LLM_MODEL", () => {

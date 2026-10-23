@@ -7,10 +7,7 @@ import { LLMConfigError } from "@/lib/llm/errors";
  * La configuration de Cominty (COMINTY_*) est lue par lib/cominty/config.ts.
  */
 const EnvSchema = z.object({
-  LLM_PROVIDER: z.preprocess(
-    (value) => (value === "" ? undefined : value),
-    z.enum(["mock", "cominty"], { error: "LLM_PROVIDER doit valoir mock ou cominty (Gemini et Anthropic ont été retirés)." }).default("mock"),
-  ),
+  LLM_PROVIDER: z.preprocess((value) => (value === "" ? undefined : value), z.enum(["mock", "cominty"]).default("mock")),
 });
 
 export type LLMConfig = { provider: "mock" | "cominty" };
@@ -19,7 +16,12 @@ export type LLMConfig = { provider: "mock" | "cominty" };
 export function readLLMConfig(env: Record<string, string | undefined> = process.env): LLMConfig {
   const parsed = EnvSchema.safeParse({ LLM_PROVIDER: env.LLM_PROVIDER });
   if (!parsed.success) {
-    throw new LLMConfigError(`Configuration invalide dans .env.local : ${parsed.error.issues.map((i) => i.message).join(" ; ")}`);
+    // La valeur reçue n'est pas un secret : l'afficher permet de trouver d'où elle vient (souvent un ancien .env.local).
+    throw new LLMConfigError(
+      `LLM_PROVIDER vaut « ${env.LLM_PROVIDER} », valeur qui n'existe plus (Gemini et Anthropic ont été retirés). ` +
+        "Mets LLM_PROVIDER=cominty (agent réel) ou LLM_PROVIDER=mock (démo hors ligne) dans .env.local ou dans les variables " +
+        "d'environnement (Railway), puis redémarre le serveur.",
+    );
   }
   return { provider: parsed.data.LLM_PROVIDER };
 }
