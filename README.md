@@ -149,6 +149,7 @@ et applique les migrations à chaque démarrage (`prisma migrate deploy`).
    |---|---|
    | `LLM_PROVIDER` | `cominty` (ou `mock` pour une démo sans crédit) |
    | `COMINTY_API_KEY`, `COMINTY_USER_ID`, `COMINTY_AGENT_ID` | identifiants de l'agent (platform.cominty.ai) |
+   | `COMINTY_EXTRACT_AGENT_ID` | facultatif : agent rapide dédié à l'import du CV et au résumé |
    | `DEMO_ACCESS_CODE` | code exigé pour tout vrai appel à Cominty (page `/acces`) |
    | `COMINTY_BUDGET_USD` | plafond global de dépense (3 $ par défaut) |
    | `DEMO_ENABLED` | `0` pour masquer le bouton de démo |

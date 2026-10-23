@@ -3,7 +3,7 @@ import { cvTextFromPaste, cvTextFromPdf, CvInputError, MAX_IMAGE_BYTES, MAX_PDF_
 import { detectCvFileType, MIME_TYPES } from "@/lib/cv/file-type";
 import type { CvReadMode, CvSource } from "@/lib/generated/prisma/enums";
 import type { LLMProvider } from "@/lib/llm/types";
-import { createCvImport } from "@/lib/repositories/cv-imports";
+import { createCvImport, findReusableCvImport } from "@/lib/repositories/cv-imports";
 
 export type CvInput = { kind: "file"; name: string; bytes: Uint8Array } | { kind: "text"; text: string };
 
@@ -50,6 +50,20 @@ export async function extractAndSave(
   sourceName: string | undefined,
   options: { provider?: LLMProvider; maxAttempts?: number; signal?: AbortSignal } = {},
 ): Promise<{ id: string }> {
+  // Même texte déjà analysé avec succès : résultat réutilisé, sans appel à l'agent (« Réessayer », réimport).
+  const previous = prepared.readMode === "TEXT" && prepared.text ? await findReusableCvImport(prepared.text) : null;
+  if (previous) {
+    return createCvImport({
+      source: prepared.source,
+      readMode: prepared.readMode,
+      sourceName,
+      text: prepared.text,
+      draft: previous.draft,
+      degraded: false,
+      usage: { provider: previous.usage.provider, model: previous.usage.model, attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0, cached: true },
+    });
+  }
+
   const result = await extractProfile(prepared.content, options);
   return createCvImport({
     source: prepared.source,

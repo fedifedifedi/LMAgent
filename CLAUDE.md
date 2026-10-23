@@ -149,7 +149,11 @@ Déploiement : Dockerfile + railway.json (volume /data pour SQLite, Chromium dan
   remplit analysis / match / content / insights : retouches, PDF et checkLetter inchangés. Coût Cominty dans LlmCall.costUsd.
 - Interface : étapes en direct (agent-timeline.tsx), questions en boutons (agent-questions.tsx ; « Autre… » ouvre un champ),
   Arrêter / Reprendre, score et ajustements du CV. Mention « CV envoyé à Cominty » sur la page d'import.
-- Import du CV et résumé : provider `cominty` de lib/llm (LLM_PROVIDER=cominty), relances dans la même conversation.
+- Import du CV et résumé : provider `cominty` de lib/llm (LLM_PROVIDER=cominty), agent dédié COMINTY_EXTRACT_AGENT_ID s'il
+  est défini (modèle rapide, instructions courtes : les instructions de l'agent des lettres pèsent ~80 % des tokens).
+  Import en arrière-plan (lib/cv/import-job.ts, CvImportJob, after()) : l'action répond tout de suite, la page interroge
+  le statut ; requestKey du navigateur = une seule session par import ; texte : max_steps 1, aucune capacité, une seule
+  tentative ; 90 s max (Réessayer). Même texte de CV déjà analysé : résultat réutilisé (usage.cached), sans appel.
 - Protection des crédits (lib/cominty/guard.ts) : tout vrai appel exige le code d'accès (DEMO_ACCESS_CODE, page /acces,
   cookie = empreinte sha256 ; toujours exigé en production) ; plafond COMINTY_BUDGET_USD (3 $ par défaut) vérifié avant
   chaque message ; dépense = somme de ComintyCharge (une ligne par message facturé, via guardedClient). Client choisi par

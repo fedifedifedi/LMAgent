@@ -11,6 +11,8 @@ const { getImportJob, startImportJob, TIMEOUT_MESSAGE } = await import("@/lib/cv
 
 const CV_TEXT = readFileSync(path.join(import.meta.dir, "..", "fixtures", "cv-sample.pdf"));
 const pdf = { kind: "file" as const, name: "cv.pdf", bytes: new Uint8Array(CV_TEXT) };
+/** CV texte unique : chaque test appelle vraiment l'agent (pas de résultat réutilisé d'un autre test). */
+const uniqueCv = () => ({ kind: "text" as const, text: `Léa Dubois — Data scientist junior. Stage Banque Atlantique, Python, SQL. Réf. ${crypto.randomUUID()}` });
 
 /** Exécute la tâche d'arrière-plan et permet de l'attendre (after() de Next dans l'application). */
 function scheduler() {
@@ -52,7 +54,8 @@ describe("import du CV en arrière-plan", () => {
     const { provider, requests } = counting("mock");
     const run = scheduler();
     const key = crypto.randomUUID();
-    const [a, b] = [await startImportJob(key, pdf, { provider, schedule: run.schedule }), await startImportJob(key, pdf, { provider, schedule: run.schedule })];
+    const cv = uniqueCv();
+    const [a, b] = [await startImportJob(key, cv, { provider, schedule: run.schedule }), await startImportJob(key, cv, { provider, schedule: run.schedule })];
     await run.done();
     expect(b).toBe(a);
     expect(requests).toHaveLength(1);
@@ -62,7 +65,7 @@ describe("import du CV en arrière-plan", () => {
   test("Cominty : une seule tentative, pas de message de relance ; le schéma tolérant récupère la sortie", async () => {
     const { provider, requests } = counting("cominty", async () => ({ text: JSON.stringify({ identity: { firstName: "Léa" }, experiences: [{ title: "Data analyst" }] }) }));
     const run = scheduler();
-    const jobId = await startImportJob(crypto.randomUUID(), pdf, { provider, schedule: run.schedule });
+    const jobId = await startImportJob(crypto.randomUUID(), uniqueCv(), { provider, schedule: run.schedule });
     await run.done();
     expect(requests).toHaveLength(1);
     const job = (await getImportJob(jobId))!;
@@ -81,10 +84,25 @@ describe("import du CV en arrière-plan", () => {
       ),
     );
     const run = scheduler();
-    const jobId = await startImportJob(crypto.randomUUID(), pdf, { provider, schedule: run.schedule, timeoutMs: 30 });
+    const jobId = await startImportJob(crypto.randomUUID(), uniqueCv(), { provider, schedule: run.schedule, timeoutMs: 30 });
     await run.done();
     expect(aborted).toBe(true);
     expect(await getImportJob(jobId)).toMatchObject({ status: "FAILED", error: TIMEOUT_MESSAGE });
+  });
+
+  test("même CV déjà analysé : résultat réutilisé tout de suite, sans appel ni coût", async () => {
+    const cv = uniqueCv();
+    const first = counting("mock");
+    const run = scheduler();
+    await startImportJob(crypto.randomUUID(), cv, { provider: first.provider, schedule: run.schedule });
+    const second = counting("mock");
+    const jobId = await startImportJob(crypto.randomUUID(), cv, { provider: second.provider, schedule: run.schedule });
+    await run.done();
+    expect(first.requests).toHaveLength(1);
+    expect(second.requests).toHaveLength(0);
+    const job = (await getImportJob(jobId))!;
+    const reused = await db.cvImport.findUniqueOrThrow({ where: { id: job.importId! } });
+    expect(reused.usage).toMatchObject({ cached: true, inputTokens: 0, outputTokens: 0 });
   });
 
   test("lire le texte d'un PDF ne vide pas le fichier (encore nécessaire pour un PDF scanné)", async () => {

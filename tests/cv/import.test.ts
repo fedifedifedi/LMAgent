@@ -51,16 +51,20 @@ describe("extractProfile (via importCv)", () => {
 
 describe("importCv", () => {
   test("texte collé : CvImport persisté avec texte normalisé, brouillon et usage", async () => {
-    const { id } = await importCv({ kind: "text", text: `  ${CV_TEXT}\n\n\n\n` }, { provider: createMockProvider() });
+    // Texte unique : un CV déjà analysé serait réutilisé (sans appel), ce que teste tests/cv/import-job.test.ts.
+    const unique = `${CV_TEXT}\nRéf. ${crypto.randomUUID()}`;
+    const { id } = await importCv({ kind: "text", text: `  ${unique}\n\n\n\n` }, { provider: createMockProvider() });
     const saved = await getCvImport(id);
 
-    expect(saved).toMatchObject({ source: "TEXT", readMode: "TEXT", sourceName: null, text: CV_TEXT, degraded: false });
+    expect(saved).toMatchObject({ source: "TEXT", readMode: "TEXT", sourceName: null, text: unique, degraded: false });
     expect(saved?.draft.identity.firstName).toBe("Camille");
     expect(saved?.usage).toMatchObject({ provider: "mock", attempts: 1 });
   });
 
   test("PDF avec texte : texte extrait, pas de fichier joint", async () => {
     const { provider, requests } = recordingMock();
+    // Base de test partagée : on retire les imports précédents du même PDF pour forcer un vrai appel.
+    await db.cvImport.deleteMany({ where: { readMode: "TEXT", text: { contains: "Banque Atlantique" } } });
     const { id } = await importCv({ kind: "file", name: "cv-lea.pdf", bytes: fixture("cv-sample.pdf") }, { provider });
 
     expect(await getCvImport(id)).toMatchObject({ source: "PDF", readMode: "TEXT", sourceName: "cv-lea.pdf" });

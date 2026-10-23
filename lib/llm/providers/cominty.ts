@@ -118,7 +118,9 @@ export function createComintyProvider(client: ComintyTaskClient = defaultClient(
 export function defaultClient(env: Record<string, string | undefined>): ComintyTaskClient {
   try {
     // Protégé comme pour les lettres : plafond COMINTY_BUDGET_USD vérifié, coût enregistré (ComintyCharge).
-    return guardedClient(createComintyClient(readComintyConfig(env)), env);
+    // Tâches JSON (import du CV, résumé) : agent d'extraction dédié s'il est configuré (COMINTY_EXTRACT_AGENT_ID).
+    const config = readComintyConfig(env);
+    return guardedClient(createComintyClient({ ...config, agentId: config.extractAgentId ?? config.agentId }), env);
   } catch (error) {
     throw toLLMError(error);
   }

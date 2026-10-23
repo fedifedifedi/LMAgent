@@ -19,6 +19,8 @@ export type LLMUsage = TokenUsage & {
   model: string;
   attempts: number;
   durationMs: number;
+  /** Résultat réutilisé (même CV déjà analysé) : aucun appel, aucun coût. */
+  cached?: boolean;
 };
 
 /** Historique neutre ; `native` porte la réponse brute du provider pour la lui renvoyer telle quelle. */

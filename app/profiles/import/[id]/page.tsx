@@ -46,7 +46,10 @@ async function CvImportForm({ params }: Pick<PageProps<"/profiles/import/[id]">,
       <p className="text-sm text-muted-foreground">
         Source : {source}
         {cvImport.readMode === "NATIVE" ? ", lue directement par le modèle" : ""} · {profileWarnings(defaultValues).length} point(s) à
-        compléter · {usage.provider} / {usage.model}, {usage.inputTokens + usage.outputTokens} tokens{usage.estimated ? " (estimés)" : ""}
+        compléter ·{" "}
+        {usage.cached
+          ? "résultat réutilisé : ce CV a déjà été analysé (aucun appel)"
+          : `${usage.provider} / ${usage.model}, ${usage.inputTokens + usage.outputTokens} tokens${usage.estimated ? " (estimés)" : ""}`}
       </p>
       {cvImport.readMode === "NATIVE" && (
         <Alert>
