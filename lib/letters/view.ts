@@ -1,6 +1,7 @@
 import { CANDIDATE_ANSWERS_LABEL, CANDIDATE_ANSWERS_SOURCE, type AgentInsights } from "@/lib/agent/agent-reply";
 import type { LetterIssue } from "@/lib/agent/letter-checks";
 import { REPLAY_PREFIX } from "@/lib/cominty/replay-client";
+import { companyLocation } from "@/lib/letters/text";
 import type { ComintyQuestion } from "@/lib/cominty/schemas";
 import { EVENT_ORDER, timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
 import type { Critique, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
@@ -113,7 +114,7 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
     header: {
       senderName: name,
       senderLines: [city, profile.contact.email, profile.contact.phone].filter((line): line is string => Boolean(line)),
-      recipientLines: [analysis?.contact ? `À l'attention de ${analysis.contact.name}` : undefined, analysis?.company, analysis?.location]
+      recipientLines: [analysis?.contact ? `À l'attention de ${analysis.contact.name}` : undefined, analysis?.company, analysis?.location ? companyLocation(analysis.location) : undefined]
         .filter((line): line is string => Boolean(line))
         .map((line) => (language === "en" && line.startsWith("À l'attention de ") ? line.replace("À l'attention de ", "For the attention of ") : line)),
       placeAndDate: language === "fr" ? `${city ? `${city}, le ` : "Le "}${date}` : city ? `${city}, ${date}` : date,

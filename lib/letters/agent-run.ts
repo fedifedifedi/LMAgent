@@ -1,8 +1,10 @@
-import { checkLetter } from "@/lib/agent/letter-checks";
+import { evidenceContext } from "@/lib/agent/evidence-checks";
+import { checkLetter, EVIDENCE_ISSUE_KINDS } from "@/lib/agent/letter-checks";
 import { eventLabel } from "@/lib/agent/agent-labels";
 import {
   agentAnswersMessage,
   agentCorrectionMessage,
+  agentEvidenceCorrectionMessage,
   agentLetterMessage,
   agentSourceIds,
   parseAgentReply,
@@ -164,7 +166,13 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   if (parsed.ok && parsed.reply.status === "ready") {
     if (!(await claim({ status: "SUCCESS" }))) return { type: "run", runId: run.id };
     const fields = toLetterFields(parsed.reply);
-    const checks = checkLetter(fields.letter, { analysis: fields.analysis, match: fields.match });
+    const evidence = evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText);
+    const checks = checkLetter(fields.letter, { analysis: fields.analysis, match: fields.match, evidence });
+    const evidenceIssues = checks.filter((check) => EVIDENCE_ISSUE_KINDS.has(check.kind));
+    // Relecture critique : un problème de preuve (terme de l'offre, statut transféré, verbe renforcé) déclenche la
+    // correction unique de la conversation. La lettre est enregistrée tout de suite (visible si la correction échoue).
+    const corrected = await db.agentRun.count({ where: { threadId: run.threadId, kind: "CORRECTION" } });
+    const correct = evidenceIssues.length > 0 && corrected === 0 && client.agentId !== REPLAY_AGENT_ID;
     await db.letter.update({
       where: { id: run.letterId },
       data: {
@@ -175,18 +183,36 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
         generated: Prisma.DbNull,
         insights: json(fields.insights),
         checks: json(checks),
-        status: "GENERATED",
+        status: correct ? "DRAFT" : "GENERATED",
         error: null,
       },
     });
-    return { type: "done" };
+    if (!correct) return { type: "done" };
+    try {
+      const started = await client.sendMessage(run.threadId, agentEvidenceCorrectionMessage(evidenceIssues.map((issue) => issue.message)));
+      const next = await db.agentRun.create({ data: { letterId: run.letterId, threadId: started.threadId, messageId: started.messageId, kind: "CORRECTION" } });
+      return { type: "next", runId: next.id };
+    } catch (error) {
+      // Correction impossible (plafond, réseau) : la lettre reste, avec ses points à vérifier.
+      console.error("Correction des preuves :", error);
+      await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED" } });
+      return { type: "done" };
+    }
   }
 
   // JSON invalide : une seule correction par conversation (une reprise après échec repart d'une nouvelle conversation).
   // Le début de la réponse est gardé avec les erreurs (AgentRun.error), pour comprendre un format inattendu.
   const diagnosis = `${issues ?? "Invalid answer"}\n\nRéponse reçue (début) :\n${message.content.slice(0, 3000)}`;
   const corrections = await db.agentRun.count({ where: { threadId: run.threadId, kind: "CORRECTION" } });
-  if (corrections > 0) return fail("FAILED", INVALID_AFTER_CORRECTION, diagnosis);
+  if (corrections > 0) {
+    const existing = await db.letter.findUnique({ where: { id: run.letterId }, select: { content: true } });
+    if (existing?.content && (await claim({ status: "FAILED", error: diagnosis }))) {
+      // La correction des preuves a échoué (format) : la première lettre reste, avec ses points à vérifier.
+      await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED" } });
+      return { type: "done" };
+    }
+    return fail("FAILED", INVALID_AFTER_CORRECTION, diagnosis);
+  }
   if (!(await claim({ status: "SUCCESS", error: diagnosis }))) return { type: "run", runId: run.id };
   let started;
   try {

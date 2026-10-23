@@ -18,7 +18,7 @@
     },
     {
       "sentences": [
-        { "text": "J'ai également mis en place des tests de bout en bout sur le parcours de commande, afin de détecter les régressions avant chaque mise en production.", "sourceIds": ["{{source:0}}"] },
+        { "text": "J'ai également mis en place des tests de bout en bout sur le parcours de commande, afin de détecter les régressions sur ce parcours.", "sourceIds": ["{{source:0}}"] },
         { "text": "Participer à vos revues de code et à l'amélioration continue de la plateforme serait pour moi l'occasion de prolonger cette démarche au sein d'une équipe d'une quinzaine de personnes.", "sourceIds": [] },
         { "text": "Mon niveau d'anglais me permet par ailleurs de lire et de rédiger sans difficulté la documentation technique.", "sourceIds": ["{{source:6}}"] }
       ]

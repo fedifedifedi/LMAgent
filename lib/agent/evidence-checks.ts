@@ -1,0 +1,157 @@
+import type { LetterIssue } from "@/lib/agent/letter-checks";
+import type { LetterContent, OfferAnalysis } from "@/lib/agent/schemas";
+import { buildSourceCatalog } from "@/lib/agent/sources";
+import type { Profile } from "@/lib/schemas/profile";
+
+/**
+ * Relecture des preuves par le code (déterministe), phrase par phrase, contre le texte des sources citées :
+ * - terme repris de l'offre sans source dans le CV (« découpage des documents » vient de l'offre, pas du CV) ;
+ * - statut transféré d'une expérience à une autre (« livré à l'équipe » est le statut d'une autre expérience) ;
+ * - verbe plus fort que celui du CV (« conçu » quand le CV dit « intégration »).
+ * Les cas viennent d'un test réel (offre fictive Nexora Labs).
+ */
+
+export type EvidenceContext = {
+  /** Texte de l'offre. */
+  offerText: string;
+  /** Texte de chaque source citable (id → contenu sérialisé de l'expérience, du projet...). */
+  sources: Record<string, string>;
+  /** Libellés lisibles (« Stage Talan Tunisie, 2025 ») pour les messages. */
+  labels?: Record<string, string>;
+  analysis?: Pick<OfferAnalysis, "jobTitle" | "company" | "contractType">;
+};
+
+const STOPWORDS = new Set(
+  (
+    "avec dans pour par sur sous des les une un du de la le et ou en au aux ces cet cette mes mon ma nos notre vos votre leur leurs " +
+    "que qui quoi dont est sont ete etre avoir ainsi aussi tres plus moins tout tous toute toutes comme entre vers chez afin " +
+    "the and for with from into this that these those your our their have has been were will would about over under " +
+    "mais donc car sans lors deja ils elles nous vous ont son ses sa"
+  ).split(" "),
+);
+
+/** Minuscules, sans accents, lettres et chiffres seulement : « Livré à l'équipe » → « livre a l equipe ». */
+export function normalize(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+const tokens = (text: string) => normalize(text).split(" ").filter(Boolean);
+const isContent = (word: string) => word.length >= 4 && !STOPWORDS.has(word);
+const contains = (haystack: string, needle: string) => ` ${haystack} `.includes(` ${needle} `);
+
+/** Statuts qui ne se transfèrent pas : la racine, et un libellé lisible. */
+const STATUS_STEMS = ["livr", "deploy", "production", "operationnel", "adopt", "industrialis", "lance", "publie"];
+
+/** Familles de verbes plus forts que « intégrer », « contribuer », « utiliser » : ils doivent être écrits dans la source. */
+const STRONG_FAMILIES: Array<{ label: string; stems: string[] }> = [
+  { label: "concevoir / conception", stems: ["concu", "concue", "concus", "concevoir", "conception", "designed"] },
+  { label: "garantir", stems: ["garanti", "garantie", "garanties", "garantis", "garantir", "garantit", "guaranteed"] },
+  { label: "opérationnel", stems: ["operationnel", "operationnelle", "operationnels", "operationnelles", "operational"] },
+  { label: "piloter", stems: ["pilote", "pilotee", "piloter", "pilotage", "led"] },
+  { label: "diriger", stems: ["dirige", "dirigee", "diriger", "direction"] },
+  { label: "architecturer", stems: ["architecture", "architecturer", "architecte", "architected"] },
+  { label: "maîtriser", stems: ["maitrise", "maitriser", "maitrisee", "mastered", "expert", "expertise"] },
+  { label: "superviser", stems: ["supervise", "superviser", "supervision", "supervised"] },
+];
+
+const sourceText = (ids: string[], sources: Record<string, string>) => normalize(ids.map((id) => sources[id] ?? "").join(" \n "));
+
+/** n-grammes (2 à 4 mots) qui commencent et finissent par un mot porteur de sens. */
+function phrases(words: string[]): string[] {
+  const out: string[] = [];
+  for (let n = 2; n <= 4; n++) {
+    for (let i = 0; i + n <= words.length; i++) {
+      const gram = words.slice(i, i + n);
+      if (isContent(gram[0]) && isContent(gram[n - 1])) out.push(gram.join(" "));
+    }
+  }
+  return out;
+}
+
+/** Statut + premier mot porteur de sens qui suit (« livre equipe », « livre pret ») : ce qui distingue deux statuts. */
+function statusKeys(words: string[]): Array<{ stem: string; key: string; phrase: string }> {
+  const keys = [];
+  for (let i = 0; i < words.length; i++) {
+    const stem = STATUS_STEMS.find((s) => words[i].startsWith(s));
+    if (!stem) continue;
+    const next = words.slice(i + 1, i + 5).find(isContent);
+    keys.push({ stem, key: next ? `${stem}…${next}` : stem, phrase: words.slice(i, i + 4).join(" ") });
+  }
+  return keys;
+}
+
+function hasStatus(text: string, stem: string, key: string): boolean {
+  const words = text.split(" ");
+  const next = key.includes("…") ? key.split("…")[1] : undefined;
+  return words.some((w, i) => w.startsWith(stem) && (!next || words.slice(i + 1, i + 5).includes(next)));
+}
+
+export function checkEvidence(letter: LetterContent, context: EvidenceContext): LetterIssue[] {
+  const issues: LetterIssue[] = [];
+  const seen = new Set<string>();
+  const push = (issue: LetterIssue) => {
+    if (seen.has(issue.message)) return;
+    seen.add(issue.message);
+    issues.push(issue);
+  };
+
+  const offer = normalize(context.offerText);
+  const profile = normalize(Object.values(context.sources).join(" \n "));
+  const identity = normalize([context.analysis?.jobTitle, context.analysis?.company, context.analysis?.contractType].filter(Boolean).join(" "));
+  const labelOf = (id: string) => context.labels?.[id] ?? id;
+  const citedLabel = (ids: string[]) => ids.map(labelOf).join(", ");
+
+  for (const paragraph of letter.paragraphs) {
+    for (const sentence of paragraph.sentences) {
+      // Seules les phrases qui affirment un fait sur le candidat (avec source) sont vérifiées.
+      // Réponses du candidat : leur texte n'est pas un élément du profil, on ne peut pas les comparer.
+      if (sentence.sourceIds.length === 0 || sentence.sourceIds.includes("candidate-answers")) continue;
+      const words = tokens(sentence.text);
+      const cited = sourceText(sentence.sourceIds, context.sources);
+
+      // 1. Terme repris de l'offre : présent dans l'offre, absent des sources citées, avec un mot inconnu du profil.
+      for (const gram of phrases(words)) {
+        if (!contains(offer, gram) || contains(cited, gram) || contains(identity, gram)) continue;
+        if (gram.split(" ").filter(isContent).some((w) => !contains(profile, w))) {
+          push({ kind: "offer_term_unsourced", message: `« ${gram} » vient de l'offre, pas du CV : ce terme n'apparaît pas dans la source citée (${citedLabel(sentence.sourceIds)}).` });
+        }
+      }
+
+      // 2. Statut transféré : le statut de la phrase n'est pas celui de la source citée.
+      for (const status of statusKeys(words)) {
+        if (hasStatus(cited, status.stem, status.key)) continue;
+        const elsewhere = Object.entries(context.sources).find(([id, text]) => !sentence.sourceIds.includes(id) && hasStatus(normalize(text), status.stem, status.key));
+        push({
+          kind: "status_transferred",
+          message: elsewhere
+            ? `« ${status.phrase} » est le statut de ${labelOf(elsewhere[0])}, pas de ${citedLabel(sentence.sourceIds)} : ne transfère pas un statut d'une expérience à une autre.`
+            : `« ${status.phrase} » : ce statut n'est pas écrit dans le CV pour ${citedLabel(sentence.sourceIds)}.`,
+        });
+      }
+
+      // 3. Verbe plus fort que le CV : la famille du verbe doit être présente dans la source citée.
+      for (const family of STRONG_FAMILIES) {
+        const used = words.find((w) => family.stems.includes(w));
+        if (used && !family.stems.some((stem) => cited.split(" ").includes(stem))) {
+          push({ kind: "verb_inflated", message: `« ${used} » est plus fort que ce que dit le CV pour ${citedLabel(sentence.sourceIds)} (famille « ${family.label} » absente) : reprends le verbe du CV.` });
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+/** Contexte de relecture à partir du profil validé et du texte de l'offre. */
+export function evidenceContext(profile: Profile, offerText: string): EvidenceContext {
+  const catalog = buildSourceCatalog(profile);
+  return {
+    offerText,
+    sources: Object.fromEntries(catalog.map((entry) => [entry.id, JSON.stringify(entry.content ?? "")])),
+    labels: Object.fromEntries(catalog.map((entry) => [entry.id, entry.label])),
+  };
+}

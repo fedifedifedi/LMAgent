@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { extractJsonText } from "@/lib/cominty/json";
+import { normalizeLetterText } from "@/lib/letters/text";
 import { letterSchema, OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { buildSourceCatalog, sourceIds } from "@/lib/agent/sources";
 import type { Profile } from "@/lib/schemas/profile";
@@ -133,10 +134,19 @@ export function toLetterFields(reply: ReadyReply): { analysis: OfferAnalysis; ma
     }),
     arguments: reply.strengths.map((s) => ({ point: s.evidence, sourceIds: s.sourceIds })),
   };
+  // Espaces invisibles, retours à la ligne, parenthèses collées : nettoyés avant l'aperçu et le PDF.
+  const clean = normalizeLetterText;
+  const letter = {
+    ...reply.letter,
+    subject: clean(reply.letter.subject),
+    salutation: clean(reply.letter.salutation),
+    closing: clean(reply.letter.closing),
+    paragraphs: reply.letter.paragraphs.map((p) => ({ sentences: p.sentences.map((s) => ({ ...s, text: clean(s.text) })) })),
+  };
   return {
     analysis: reply.analysis,
     match,
-    letter: reply.letter,
+    letter,
     insights: { score: reply.score, scoreReasons: reply.scoreReasons, cvAdjustments: reply.cvAdjustments },
   };
 }
@@ -183,6 +193,18 @@ export function agentAnswersMessage(answers: CandidateAnswer[]): string {
     `LMAgent — réponses du candidat (source ${CANDIDATE_ANSWERS_SOURCE}) :`,
     lines.join("\n"),
     `Réponds maintenant avec l'objet JSON complet (status "ready"), au format du premier message. Cite "${CANDIDATE_ANSWERS_SOURCE}" pour les faits tirés de ces réponses.`,
+  ].join("\n\n");
+}
+
+/** Relecture critique : problèmes de preuve détectés par le code, renvoyés à l'agent (correction unique). */
+export function agentEvidenceCorrectionMessage(problems: string[]): string {
+  return [
+    "LMAgent — relecture : ta lettre contient des affirmations qui ne sont pas écrites dans le CV pour l'expérience citée.",
+    `Problèmes :\n${problems.map((p) => `- ${p}`).join("\n")}`,
+    "Corrige ces phrases : reprends les mots et les verbes du CV pour l'expérience citée, ou retire l'affirmation. Ne change rien d'autre.",
+    EVIDENCE_RULES,
+    AGENT_OUTPUT_CONTRACT,
+    "Renvoie l'objet JSON complet corrigé, et lui seul.",
   ].join("\n\n");
 }
 

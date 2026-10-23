@@ -1,12 +1,25 @@
+import { checkEvidence, type EvidenceContext } from "@/lib/agent/evidence-checks";
 import type { LetterContent, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
 
 export const MIN_WORDS = 250;
 export const MAX_WORDS = 350;
 
 export type LetterIssue = {
-  kind: "too_long" | "too_short" | "wrong_language" | "claims_missing_skill" | "addressing";
+  kind:
+    | "too_long"
+    | "too_short"
+    | "wrong_language"
+    | "claims_missing_skill"
+    | "addressing"
+    // Relecture des preuves (lib/agent/evidence-checks.ts)
+    | "offer_term_unsourced"
+    | "status_transferred"
+    | "verb_inflated";
   message: string;
 };
+
+/** Problèmes de preuve : ils déclenchent la correction (unique) demandée à l'agent. */
+export const EVIDENCE_ISSUE_KINDS: ReadonlySet<LetterIssue["kind"]> = new Set(["claims_missing_skill", "offer_term_unsourced", "status_transferred", "verb_inflated"]);
 
 const words = (text: string) => text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 
@@ -32,7 +45,7 @@ export function mentions(text: string, term: string): boolean {
  * Vérifications déterministes, en plus de la critique du modèle : longueur, langue, compétences absentes du profil
  * revendiquées, formule d'appel quand l'offre nomme un contact.
  */
-export function checkLetter(letter: LetterContent, context: { analysis: OfferAnalysis; match: ProfileMatch }): LetterIssue[] {
+export function checkLetter(letter: LetterContent, context: { analysis: OfferAnalysis; match: ProfileMatch; evidence?: EvidenceContext }): LetterIssue[] {
   const issues: LetterIssue[] = [];
   const count = letterWordCount(letter);
   if (count > MAX_WORDS) issues.push({ kind: "too_long", message: `La lettre fait ${count} mots : au-delà de ${MAX_WORDS}, elle risque de dépasser une page.` });
@@ -56,5 +69,6 @@ export function checkLetter(letter: LetterContent, context: { analysis: OfferAna
       issues.push({ kind: "addressing", message: `L'offre nomme ${contact} : la lettre devrait s'adresser à cette personne.` });
     }
   }
+  if (context.evidence) issues.push(...checkEvidence(letter, { ...context.evidence, analysis: context.analysis }));
   return issues;
 }

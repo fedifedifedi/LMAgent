@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { evidenceContext } from "@/lib/agent/evidence-checks";
 import { checkLetter } from "@/lib/agent/letter-checks";
+import { ProfileSchema } from "@/lib/schemas/profile";
 import { OfferAnalysisSchema, type ProfileMatch } from "@/lib/agent/schemas";
 import { clientForMessage, clientForStart, isComintyMode, requestHasAccess } from "@/lib/cominty/agent-client";
 import { ComintyError } from "@/lib/cominty/errors";
@@ -99,7 +101,7 @@ export async function saveLetterEditsAction(letterId: unknown, edits: unknown): 
   if (!id.success) return { error: "Lettre introuvable." };
   if (!parsedEdits.success) return { error: parsedEdits.error.issues[0]?.message ?? "Texte invalide." };
 
-  const letter = await db.letter.findUnique({ where: { id: id.data } });
+  const letter = await db.letter.findUnique({ where: { id: id.data }, include: { profile: true } });
   if (!letter?.content || !letter.analysis || !letter.match) return { error: "La lettre n'est pas encore générée." };
   const current = StoredLetterSchema.parse(letter.content);
   let next;
@@ -108,7 +110,7 @@ export async function saveLetterEditsAction(letterId: unknown, edits: unknown): 
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Texte invalide." };
   }
-  const checks = checkLetter(next, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch });
+  const checks = checkLetter(next, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch, evidence: evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText) });
   await db.letter.update({
     where: { id: id.data },
     data: {
@@ -125,10 +127,10 @@ export async function saveLetterEditsAction(letterId: unknown, edits: unknown): 
 export async function revertLetterAction(letterId: unknown): Promise<ViewResult> {
   const id = z.string().min(1).safeParse(letterId);
   if (!id.success) return { error: "Lettre introuvable." };
-  const letter = await db.letter.findUnique({ where: { id: id.data } });
+  const letter = await db.letter.findUnique({ where: { id: id.data }, include: { profile: true } });
   if (!letter?.generated || !letter.analysis || !letter.match) return { error: "Aucune version générée à restaurer." };
   const generated = StoredLetterSchema.parse(letter.generated);
-  const checks = checkLetter(generated, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch });
+  const checks = checkLetter(generated, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch, evidence: evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText) });
   await db.letter.update({
     where: { id: id.data },
     data: { content: generated as Prisma.InputJsonObject, generated: Prisma.DbNull, checks: checks as unknown as Prisma.InputJsonValue },
