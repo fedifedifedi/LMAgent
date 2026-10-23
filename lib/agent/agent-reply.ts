@@ -81,11 +81,26 @@ export function parseAgentReply(content: string, ids: [string, ...string[]]): { 
     return { ok: false, issues: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}` };
   }
   const needsInput = (json as { status?: unknown } | null)?.status === "needs_input";
+  if (!needsInput) json = dropEmptyOptionals(json);
   const parsed = needsInput ? NeedsInputSchema.safeParse(json) : readyReplySchema(ids).safeParse(json);
   if (parsed.success) return { ok: true, reply: parsed.data };
   // Zod saute le contrôle des noms quand d'autres erreurs existent : on l'ajoute, l'agent n'a qu'une correction.
   const nameIssues = needsInput ? [] : requirementNameIssues(json);
   return { ok: false, issues: [z.prettifyError(parsed.error), ...nameIssues].join("\n") };
+}
+
+const OPTIONAL_ANALYSIS_KEYS = ["company", "location", "contractType", "duration", "startDate"] as const;
+
+/** "" ou null sur un champ facultatif de l'analyse = champ absent (l'agent remplit parfois le modèle au lieu d'omettre). */
+function dropEmptyOptionals(json: unknown): unknown {
+  const analysis = (json as { analysis?: Record<string, unknown> } | null)?.analysis;
+  if (!analysis || typeof analysis !== "object") return json;
+  const blank = (value: unknown) => value === null || (typeof value === "string" && value.trim() === "");
+  for (const key of OPTIONAL_ANALYSIS_KEYS) if (blank(analysis[key])) delete analysis[key];
+  const contact = analysis.contact as Record<string, unknown> | null | undefined;
+  if (contact === null || (contact && blank(contact.name))) delete analysis.contact;
+  else if (contact) for (const key of ["civility", "role"]) if (blank(contact[key])) delete contact[key];
+  return json;
 }
 
 /** Noms des forces et manques absents de analysis.requirements, lus sur le JSON brut. */
@@ -124,13 +139,35 @@ export function toLetterFields(reply: ReadyReply): { analysis: OfferAnalysis; ma
   };
 }
 
-/** Premier message : en-tête « LMAgent », profil validé (seule source de faits), ids autorisés, offre. */
+/**
+ * Contrat de sortie répété dans chaque message : au test réel, l'agent a ignoré la section « LMAgent mode » de ses
+ * instructions (clés snake_case, lettre en un seul bloc de texte), alors qu'il suit le format écrit dans le message.
+ */
+export const AGENT_OUTPUT_CONTRACT = `Format de réponse OBLIGATOIRE : un seul objet JSON, sans Markdown ni bloc de code, avec exactement ces clés (camelCase) :
+{"status":"ready",
+"analysis":{"language":"fr|en","jobTitle":"…","company":"…","location":"…","contractType":"…","duration":"…","startDate":"…","contact":{"name":"…","civility":"…","role":"…"},"missions":["…"],"requirements":[{"name":"…","kind":"hard|soft|language|education|experience","importance":"required|preferred"}],"companyFacts":["…"],"keywords":["…"]},
+"score":0,
+"scoreReasons":["3 à 5 raisons courtes"],
+"strengths":[{"requirement":"nom exact d'un analysis.requirements[].name","status":"matched|partial","evidence":"preuve tirée du profil","sourceIds":["id autorisé"]}],
+"gaps":[{"requirement":"nom exact d'un analysis.requirements[].name","importance":"required|preferred","note":"…"}],
+"letter":{"language":"fr|en","subject":"objet","salutation":"formule d'appel","paragraphs":[{"sentences":[{"text":"une phrase","sourceIds":["id autorisé"]}]}],"closing":"formule de politesse seule"},
+"cvAdjustments":[{"section":"…","change":"…","reason":"…","sourceIds":["id autorisé"]}]}
+Règles :
+- Omets une clé facultative (company, location, contractType, duration, startDate, contact, civility, role) plutôt que de l'inventer ; copie contact, companyFacts et dates tels qu'écrits dans l'offre.
+- La lettre : 3 à 6 paragraphes, 250 à 300 mots en tout, découpée en phrases. PAS d'en-tête, de date, de lieu, de coordonnées ni de signature : l'application les ajoute. "closing" = la formule de politesse seule.
+- Chaque phrase qui affirme un fait sur le candidat cite au moins un id autorisé ; une phrase sur l'entreprise ou l'offre n'en cite aucun. Jamais "profile-summary" comme preuve d'un projet précis.
+- Si l'offre nomme un contact, la formule d'appel s'adresse à cette personne. Un manque n'est jamais présenté comme une compétence acquise.
+- analysis, scoreReasons, strengths, gaps et cvAdjustments en français ; la lettre dans la langue de l'offre.
+Si une information indispensable manque : pose tes questions avec la fonction de questions native de Cominty et réponds exactement {"status":"needs_input"}.`;
+
+/** Premier message : en-tête « LMAgent », profil validé (seule source de faits), ids autorisés, offre, contrat de sortie. */
 export function agentLetterMessage(profile: Profile, offerText: string): string {
   return [
     "LMAgent",
     `Profil validé du candidat (JSON, seule source de faits) :\n${JSON.stringify(profile)}`,
     `Ids de sources autorisés : ${agentSourceIds(profile).join(", ")}`,
     `Offre :\n${offerText}`,
+    AGENT_OUTPUT_CONTRACT,
   ].join("\n\n");
 }
 
@@ -142,7 +179,7 @@ export function agentAnswersMessage(answers: CandidateAnswer[]): string {
   return [
     `LMAgent — réponses du candidat (source ${CANDIDATE_ANSWERS_SOURCE}) :`,
     lines.join("\n"),
-    'Réponds maintenant avec l\'objet JSON complet (status "ready").',
+    `Réponds maintenant avec l'objet JSON complet (status "ready"), au format du premier message. Cite "${CANDIDATE_ANSWERS_SOURCE}" pour les faits tirés de ces réponses.`,
   ].join("\n\n");
 }
 
@@ -151,6 +188,7 @@ export function agentCorrectionMessage(issues: string): string {
   return [
     "LMAgent — ta réponse ne respecte pas le format JSON attendu.",
     `Erreurs :\n${issues}`,
+    AGENT_OUTPUT_CONTRACT,
     "Renvoie l'objet JSON complet corrigé, et lui seul. N'invente aucune information.",
   ].join("\n\n");
 }

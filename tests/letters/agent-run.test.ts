@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { agentReplySchema, agentSourceIds, parseAgentReply } from "@/lib/agent/agent-reply";
+import { agentLetterMessage, agentReplySchema, agentSourceIds, parseAgentReply } from "@/lib/agent/agent-reply";
 import { eventLabel } from "@/lib/agent/agent-labels";
 import { ComintyStreamError } from "@/lib/cominty/errors";
 import { createMockComintyClient, mockReadyReply, MOCK_QUESTION, type AgentClient } from "@/lib/cominty/mock-client";
@@ -178,6 +178,26 @@ describe("réponse de l'agent (schéma)", () => {
     if (parsed.ok) return;
     expect(parsed.issues).toContain("analysis.requirements");
     expect(parsed.issues).toContain("sourceIds");
+  });
+
+  test("réponse réelle au mauvais format (clés snake_case, lettre en un bloc) : rejetée avec des erreurs précises", async () => {
+    const lines = (await Bun.file(new URL("../fixtures/cominty/letter-wrong-format.jsonl", import.meta.url)).text()).trim().split("\n");
+    const message = JSON.parse(lines.at(-1)!) as { content: string };
+    const parsed = parseAgentReply(message.content, ids);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.issues).toContain("analysis");
+    expect(parsed.issues).toContain("letter");
+  });
+
+  test("le message de lettre porte le contrat JSON ; un champ facultatif vide est ignoré", () => {
+    const message = agentLetterMessage(profile, "Offre");
+    expect(message.startsWith("LMAgent")).toBe(true);
+    for (const key of ['"scoreReasons"', '"cvAdjustments"', '"sentences"', "needs_input"]) expect(message).toContain(key);
+    const reply = mockReadyReply(ids) as { analysis: Record<string, unknown> };
+    reply.analysis = { ...reply.analysis, location: "", duration: null, contact: { name: "Sarah Lemoine", civility: "", role: "Responsable technique" } };
+    const parsed = parseAgentReply(JSON.stringify(reply), ids);
+    expect(parsed.ok).toBe(true);
   });
 
   test("libellés lisibles des événements, jamais le raisonnement brut", () => {
