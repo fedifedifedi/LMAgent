@@ -1,4 +1,5 @@
-import { extractProfile, type CvSourceContent } from "@/lib/agent/extract-profile";
+import { extractionKey, extractProfile, type CvSourceContent } from "@/lib/agent/extract-profile";
+import { getProvider } from "@/lib/llm";
 import { cvTextFromPaste, cvTextFromPdf, CvInputError, MAX_IMAGE_BYTES, MAX_PDF_BYTES } from "@/lib/cv/extract-text";
 import { detectCvFileType, MIME_TYPES } from "@/lib/cv/file-type";
 import type { CvReadMode, CvSource } from "@/lib/generated/prisma/enums";
@@ -50,8 +51,10 @@ export async function extractAndSave(
   sourceName: string | undefined,
   options: { provider?: LLMProvider; maxAttempts?: number; signal?: AbortSignal } = {},
 ): Promise<{ id: string }> {
-  // Même texte déjà analysé avec succès : résultat réutilisé, sans appel à l'agent (« Réessayer », réimport).
-  const previous = prepared.readMode === "TEXT" && prepared.text ? await findReusableCvImport(prepared.text) : null;
+  const provider = options.provider ?? getProvider();
+  const key = extractionKey(provider);
+  // Même texte déjà analysé avec succès PAR LA MÊME EXTRACTION (agent, règles, schéma) : réutilisé, sans appel.
+  const previous = prepared.readMode === "TEXT" && prepared.text ? await findReusableCvImport(prepared.text, key) : null;
   if (previous) {
     return createCvImport({
       source: prepared.source,
@@ -61,10 +64,11 @@ export async function extractAndSave(
       draft: previous.draft,
       degraded: false,
       usage: { provider: previous.usage.provider, model: previous.usage.model, attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0, cached: true },
+      extractionKey: key,
     });
   }
 
-  const result = await extractProfile(prepared.content, options);
+  const result = await extractProfile(prepared.content, { ...options, provider });
   return createCvImport({
     source: prepared.source,
     readMode: prepared.readMode,
@@ -74,5 +78,6 @@ export async function extractAndSave(
     degraded: result.degraded,
     issues: result.issues,
     usage: result.usage,
+    extractionKey: key,
   });
 }

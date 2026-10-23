@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
+import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { generateObject, type GenerateObjectResult } from "@/lib/llm";
+import { toTargetJsonSchema } from "@/lib/llm/json-schema";
 import type { Attachment, LLMProvider } from "@/lib/llm/types";
 import { LLM_OUTPUTS } from "@/lib/schemas/llm-outputs";
 import type { ProfileDraft } from "@/lib/schemas/profile";
@@ -23,6 +26,15 @@ Rules:
 export const NATIVE_READING_RULE = `- The CV is the attached file. If a part is illegible (blurry, cut off, too small, hidden), omit it rather than guess. Never reconstruct a partially readable word, date, name or number.`;
 
 export type ExtractProfileResult = GenerateObjectResult<ProfileDraft>;
+
+/**
+ * Empreinte d'une extraction : agent (provider + modèle, donc COMINTY_EXTRACT_AGENT_ID), consignes, règles de preuve et
+ * schéma cible. Elle change dès que l'un d'eux change : le cache des CV déjà analysés est alors invalidé.
+ */
+export function extractionKey(provider: Pick<LLMProvider, "name" | "model">): string {
+  const parts = [provider.name, provider.model, EXTRACT_PROFILE_SYSTEM, NATIVE_READING_RULE, EVIDENCE_RULES, JSON.stringify(toTargetJsonSchema(LLM_OUTPUTS.profile_draft.schema))];
+  return createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 32);
+}
 
 export type CvSourceContent = { text: string } | { file: Attachment };
 

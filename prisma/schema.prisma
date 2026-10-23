@@ -52,6 +52,9 @@ model CvImport {
   issues     String?
   /// LLMUsage de l'extraction (provider, modèle, tokens, tentatives).
   usage      Json
+  /// Empreinte de l'extraction (agent, consignes, règles de preuve, schéma) : un même CV n'est réutilisé que si elle est
+  /// identique, donc jamais après un changement d'agent ou de règles. null pour les imports antérieurs (jamais réutilisés).
+  extractionKey String?
   /// Profil créé à partir de cet import, une fois validé.
   profileId  String?
   profile    Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)

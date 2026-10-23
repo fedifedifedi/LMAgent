@@ -105,6 +105,23 @@ describe("import du CV en arrière-plan", () => {
     expect(reused.usage).toMatchObject({ cached: true, inputTokens: 0, outputTokens: 0 });
   });
 
+  test("cache invalidé quand l'agent d'extraction (ou les règles) change : pas de réutilisation", async () => {
+    const cv = uniqueCv();
+    const run = scheduler();
+    const oldAgent = counting("cominty");
+    await startImportJob(crypto.randomUUID(), cv, { provider: oldAgent.provider, schedule: run.schedule });
+    await run.done();
+    // Même CV, autre agent (COMINTY_EXTRACT_AGENT_ID changé) : nouvelle extraction.
+    const newAgent = { ...counting("cominty"), } ;
+    const provider = { ...newAgent.provider, model: "agent:nouvel-agent" };
+    await startImportJob(crypto.randomUUID(), cv, { provider, schedule: run.schedule });
+    await run.done();
+    expect(oldAgent.requests).toHaveLength(1);
+    expect(newAgent.requests).toHaveLength(1);
+    const { extractionKey } = await import("@/lib/agent/extract-profile");
+    expect(extractionKey({ name: "cominty", model: "agent:a" })).not.toBe(extractionKey({ name: "cominty", model: "agent:b" }));
+  });
+
   test("lire le texte d'un PDF ne vide pas le fichier (encore nécessaire pour un PDF scanné)", async () => {
     const { cvTextFromPdf } = await import("@/lib/cv/extract-text");
     const bytes = new Uint8Array(CV_TEXT);
