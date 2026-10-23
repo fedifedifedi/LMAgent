@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { extractJsonText } from "@/lib/cominty/json";
 import { letterSchema, OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { buildSourceCatalog, sourceIds } from "@/lib/agent/sources";
@@ -168,6 +169,7 @@ export function agentLetterMessage(profile: Profile, offerText: string): string 
     `Profil validé du candidat (JSON, seule source de faits) :\n${JSON.stringify(profile)}`,
     `Ids de sources autorisés : ${agentSourceIds(profile).join(", ")}`,
     `Offre :\n${offerText}`,
+    EVIDENCE_RULES,
     AGENT_OUTPUT_CONTRACT,
   ].join("\n\n");
 }
@@ -189,6 +191,7 @@ export function agentCorrectionMessage(issues: string): string {
   return [
     "LMAgent — ta réponse ne respecte pas le format JSON attendu.",
     `Erreurs :\n${issues}`,
+    EVIDENCE_RULES,
     AGENT_OUTPUT_CONTRACT,
     "Renvoie l'objet JSON complet corrigé, et lui seul. N'invente aucune information.",
   ].join("\n\n");

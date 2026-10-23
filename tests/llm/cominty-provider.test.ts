@@ -72,6 +72,8 @@ describe("provider cominty", () => {
     expect(content).toContain("Write a summary.");
     expect(content).toContain('"summary"');
     expect(content).toContain("Profile: {…}");
+    expect(content).toContain("Ne déduis jamais ce qui n'est pas écrit");
+    expect(content).toContain("Ne transfère jamais une technique");
   });
 
   test("relance dans la même conversation avec l'erreur de validation, sans redémarrer ni renvoyer les fichiers", async () => {

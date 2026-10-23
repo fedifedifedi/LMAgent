@@ -1,3 +1,4 @@
+import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { createComintyClient, type ComintyClient } from "@/lib/cominty/client";
 import { readComintyConfig } from "@/lib/cominty/config";
 import { ComintyAuthError, ComintyConfigError, ComintyError, ComintyRateLimitError } from "@/lib/cominty/errors";
@@ -28,6 +29,7 @@ export function taskMessage(request: Pick<CompletionRequest, "name" | "system" |
   return [
     `LMAgent task: ${request.name}`,
     `Task instructions:\n${request.system}`,
+    EVIDENCE_RULES,
     `JSON Schema of the answer:\n${JSON.stringify(request.jsonSchema)}`,
     hasFiles ? `Input (the attached file is the source):\n${input}` : `Input:\n${input}`,
   ].join("\n\n");

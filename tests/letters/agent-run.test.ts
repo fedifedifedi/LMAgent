@@ -236,7 +236,7 @@ describe("réponse de l'agent (schéma)", () => {
   test("le message de lettre porte le contrat JSON ; un champ facultatif vide est ignoré", () => {
     const message = agentLetterMessage(profile, "Offre");
     expect(message.startsWith("LMAgent")).toBe(true);
-    for (const key of ['"scoreReasons"', '"cvAdjustments"', '"sentences"', "needs_input"]) expect(message).toContain(key);
+    for (const key of ['"scoreReasons"', '"cvAdjustments"', '"sentences"', "needs_input", "Règles de preuve", "dans le texte de CETTE expérience"]) expect(message).toContain(key);
     const reply = mockReadyReply(ids) as { analysis: Record<string, unknown> };
     reply.analysis = { ...reply.analysis, location: "", duration: null, contact: { name: "Sarah Lemoine", civility: "", role: "Responsable technique" } };
     const parsed = parseAgentReply(JSON.stringify(reply), ids);
