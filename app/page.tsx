@@ -1,7 +1,9 @@
 import { io } from "next/cache";
 import Link from "next/link";
 import { Suspense } from "react";
+import { DemoButton } from "@/app/_components/demo-button";
 import { HomeMotion } from "@/app/_components/home-motion";
+import { demoEnabled } from "@/lib/demo";
 import { LogoStacked } from "@/components/logo";
 import { SpotlightCard } from "@/components/spotlight-card";
 import { buttonVariants } from "@/components/ui/button";
@@ -36,6 +38,7 @@ export default function Home() {
                 <Suspense fallback={<StartLink href="/profiles/new" />}>
                   <Start />
                 </Suspense>
+                {demoEnabled() && <DemoButton />}
               </div>
               <ul className="home-lede flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
                 {PROOFS.map((proof) => (
