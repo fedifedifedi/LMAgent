@@ -21,8 +21,10 @@ essais + `docker pull`), le même problème réseau que pour les gros téléchar
 ses serveurs : non concerné. À retenter sur un autre réseau, ou directement sur Railway.
 
 Points d'attention :
-- Le rejeu montre la lettre du vrai run, écrite **avant** les règles de preuve : on y retrouve « deuxième année de
-  master » et « cycle complet ». Un nouveau run réel (avec ton accord, ~0,18 $) donnerait un enregistrement plus propre.
+- ~~Le rejeu montrait la lettre écrite avant les règles de preuve.~~ **Remplacé** par un nouveau run réel avec les règles
+  de preuve (`npm run demo:record`, un seul appel, 288 s, 0,32 $) : 252 mots, score 87, aucun point signalé par le code ;
+  « deuxième année », « dernière année », « cycle complet », « maîtrise » absents ; chaque phrase cite la bonne source
+  (séries temporelles → projet tramway seulement) ; Docker toujours en manque, jamais revendiqué.
 - La dépense déjà engagée pendant les tests (~0,58 $ en tout) n'est pas dans `ComintyCharge` : le plafond part de 0.
 - Sans `DEMO_ACCESS_CODE`, une installation en production n'autorise que la démo enregistrée (sécurité par défaut).
 
