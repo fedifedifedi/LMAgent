@@ -45,7 +45,8 @@ export function cvTextFromPaste(raw: string): string {
 export async function cvTextFromPdf(bytes: Uint8Array): Promise<string | null> {
   let pages: string[];
   try {
-    const pdf = await getDocumentProxy(bytes);
+    // Copie : pdf.js transfère (détache) le tampon reçu ; l'original sert encore à la lecture native d'un PDF scanné.
+    const pdf = await getDocumentProxy(bytes.slice());
     ({ text: pages } = await extractText(pdf));
   } catch {
     throw new CvInputError("Impossible de lire ce PDF (fichier corrompu ou protégé).");
