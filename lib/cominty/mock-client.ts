@@ -61,7 +61,8 @@ function event(n: number, correlation: number, name: string, status: "running" |
  * Faux agent Cominty, sans réseau ni crédit : pose une question au premier message, rend la lettre ensuite.
  * Les événements imitent ceux d'un vrai flux (mise en route, réflexion, résultat avec coût).
  */
-export function createMockComintyClient(options: { delayMs?: number; askFirst?: boolean } = {}): AgentClient {
+/** readyReply : réponse « ready » personnalisée (ex. scripts/demo pour Léa Dubois), sinon celle des fixtures du mock. */
+export function createMockComintyClient(options: { delayMs?: number; askFirst?: boolean; readyReply?: (allowedIds: string[]) => unknown } = {}): AgentClient {
   const delayMs = options.delayMs ?? 350;
   const askFirst = options.askFirst ?? true;
   const threads = new Map<string, MockThread>();
@@ -71,7 +72,7 @@ export function createMockComintyClient(options: { delayMs?: number; askFirst?: 
     const messageId = `mock-msg-${crypto.randomUUID()}`;
     const isFirst = thread.turns.length === 0;
     const ask = askFirst && isFirst;
-    const text = JSON.stringify(ask ? { status: "needs_input" } : mockReadyReply(thread.allowedIds));
+    const text = JSON.stringify(ask ? { status: "needs_input" } : (options.readyReply ?? mockReadyReply)(thread.allowedIds));
     const reply: ComintyMessage = {
       id: messageId,
       thread_id: thread.id,

@@ -41,10 +41,13 @@ signalent toute compétence revendiquée qui n'y figure pas.
 
 **Génération de la lettre**
 - Offre collée ou lue depuis un lien (JSON-LD `JobPosting` puis Readability, protégé contre le SSRF).
-- Pipeline : analyse de l'offre → correspondance avec le profil → rédaction → relecture critique → au plus une réécriture.
+- Un seul tour de l'agent managé **Cominty** : analyse de l'offre, score d'adéquation, forces et manques, lettre et
+  ajustements du CV, avec les étapes de l'agent affichées en direct.
+- Quand une information manque, l'agent pose ses questions (questions natives de Cominty), affichées en boutons.
+- Réponse validée par le code (sources autorisées, exigences de l'offre), une correction automatique si le format est
+  faux, reprise après une coupure.
 - Contrôles du code : 250 à 350 mots, langue de l'offre, compétences absentes du profil, contact nommé dans l'offre.
-- Pipeline reprenable : en cas d'erreur (par exemple un quota atteint), la lettre reprend à l'étape interrompue.
-- Suivi des tokens de chaque appel au modèle.
+- Suivi des tokens et du coût de chaque tour de l'agent.
 
 **Aperçu, retouches et PDF**
 - Trois mises en page (Moderne, Classique, Compact), un seul composant React pour l'aperçu et le PDF.
@@ -70,7 +73,7 @@ signalent toute compétence revendiquée qui n'y figure pas.
 |---|---|
 | <img src="docs/screenshots/lettre-sources-sombre-1440x900@2x.png" alt="Page de la lettre en thème sombre" /> | <img src="docs/screenshots/pdf-page1-clair-1440x900@2x.png" alt="Première page du PDF exporté" /> |
 
-Les captures montrent un profil fictif (Léa Dubois) et une lettre générée par le provider `mock` : `npm run demo:seed`
+Les captures montrent un profil fictif (Léa Dubois) et une lettre générée en mode `mock` : `npm run demo:seed`
 crée cette base de démonstration (données dans `scripts/demo/`), sans toucher à `prisma/dev.db`.
 Toutes les pages existent aussi en thème sombre et au format 1080 × 1350 dans `docs/screenshots/`.
 
@@ -82,13 +85,14 @@ Toutes les pages existent aussi en thème sombre et au format 1080 × 1350 dans 
 | Interface | Tailwind CSS 4, shadcn/ui (Base UI), GSAP + SplitText, Lenis |
 | Formulaires et validation | react-hook-form, Zod |
 | Données | Prisma 7, SQLite via libSQL, recherche plein texte FTS5 |
-| Modèles de langage | Google Gemini (`@google/genai`), Anthropic Claude (`@anthropic-ai/sdk`), provider `mock` hors ligne |
+| IA | Agent managé Cominty (API REST, flux JSONL relayé en SSE), faux agent `mock` hors ligne |
 | Documents | unpdf (texte des PDF), Readability + linkedom (offres en ligne), puppeteer-core + pdf-lib (export PDF) |
 | Tests | `bun test`, base SQLite temporaire migrée |
 
-La couche LLM (`lib/llm`) isole les providers : validation Zod des sorties, relances avec l'erreur renvoyée au modèle,
-schéma tolérant en dernier recours et comptage des tokens. Les étapes simples peuvent utiliser un modèle plus léger
-(`LLM_MODEL_FAST`).
+Toute l'IA passe par l'agent Cominty : client REST dans `lib/cominty`, lettre en un tour suivi en direct
+(`lib/letters/agent-run.ts`), import du CV et résumé via `lib/llm` (validation Zod, relances dans la même conversation,
+schéma tolérant en dernier recours). Chaque message rappelle à l'agent le format JSON attendu et les règles de preuve
+(ne rien déduire, ne jamais transférer une technique d'une expérience à une autre).
 
 ## Installation
 
@@ -96,7 +100,7 @@ schéma tolérant en dernier recours et comptage des tokens. Les étapes simples
 
 - [Bun](https://bun.sh) (gestion des paquets et tests) et Node.js 20 ou plus récent.
 - Pour l'export PDF : Microsoft Edge ou Google Chrome installé localement.
-- Une clé API Gemini ou Anthropic, **facultative** : le provider `mock` fonctionne sans clé.
+- Un agent Cominty configuré (platform.cominty.ai), **facultatif** : le mode `mock` fonctionne sans compte ni réseau.
 
 ### Étapes
 
@@ -113,10 +117,8 @@ npm run dev                     # http://localhost:3000
 
 | Variable | Rôle |
 |---|---|
-| `LLM_PROVIDER` | `mock` (défaut, sans clé), `gemini` ou `anthropic` |
-| `LLM_MODEL` | Identifiant exact du modèle, obligatoire hors `mock` |
-| `LLM_MODEL_FAST` | Facultatif : modèle léger pour l'analyse de l'offre et la correspondance |
-| `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` | Clé du provider choisi |
+| `LLM_PROVIDER` | `mock` (défaut, sans compte) ou `cominty` |
+| `COMINTY_API_KEY`, `COMINTY_USER_ID`, `COMINTY_AGENT_ID` | Identifiants de l'agent Cominty |
 | `DATABASE_URL` | Facultatif : `file:./prisma/dev.db` par défaut |
 | `CHROME_PATH` | Chemin d'Edge ou de Chrome pour l'export PDF |
 
@@ -132,7 +134,6 @@ Les clés restent côté serveur et ne sont jamais envoyées au navigateur. `.en
 | `npm run lint` | ESLint |
 | `npm run demo:seed` | Base de démonstration fictive (Léa Dubois) dans un dossier temporaire |
 | `npm run cominty:smoke` | Un appel réel à l'agent Cominty (profil fictif, `max_steps` 3) : consomme des crédits |
-| `npm run llm:smoke` / `npm run letter:smoke` | Test réel du provider configuré (consomme du quota) |
 
 ## Déploiement sur Railway
 
@@ -167,8 +168,9 @@ components/          logo, templates de lettre, composants d'interface
 lib/
   agent/             étapes de l'agent, schémas et vérifications de la lettre
   cv/                lecture des fichiers et import du CV
-  llm/               providers, boucle de génération validée, fixtures du mock
-  letters/           pipeline reprenable, mises en page, retouches
+  cominty/           client REST de l'agent Cominty, faux agent (mock)
+  llm/               provider cominty ou mock, boucle de génération validée, fixtures du mock
+  letters/           tour de l'agent suivi en direct, mises en page, retouches
   pdf/               rendu avec Edge et nettoyage des métadonnées
   offer/             lecture d'une offre depuis un lien
 prisma/              schéma et migrations (FTS5 et triggers en SQL)

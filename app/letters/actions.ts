@@ -12,9 +12,7 @@ import { AgentRunError, answerAgentRun, cancelAgentRun, startAgentRun } from "@/
 import { Prisma } from "@/lib/generated/prisma/client";
 import { applyEdits, LetterEditsSchema, StoredLetterSchema } from "@/lib/letters/stored";
 import { isLetterTemplate } from "@/lib/letters/templates";
-import { runNextStep } from "@/lib/letters/pipeline";
 import { getLetterView, type LetterView } from "@/lib/letters/view";
-import { DAILY_QUOTA_LETTER_MESSAGE, LLMError, LLMRateLimitError, LLMValidationError } from "@/lib/llm";
 import { fetchOffer, OfferFetchError } from "@/lib/offer/fetch-offer";
 import { MAX_OFFER_CHARS, MIN_PASTED_OFFER_CHARS, normalizeText } from "@/lib/offer/text";
 
@@ -188,34 +186,4 @@ export async function getLetterViewAction(letterId: unknown): Promise<ViewResult
   if (!id.success) return { error: "Lettre introuvable." };
   const view = await getLetterView(id.data);
   return view ? { view } : { error: "Lettre introuvable." };
-}
-
-export type StepActionResult = { view: LetterView; error?: string; retryAfterSeconds?: number };
-
-/** Exécute l'étape suivante du pipeline (appelée par la page, une étape à la fois) et renvoie l'état à jour. */
-export async function runLetterStepAction(letterId: unknown): Promise<StepActionResult | { error: string }> {
-  const id = z.string().min(1).safeParse(letterId);
-  if (!id.success) return { error: "Lettre introuvable." };
-
-  let error: string | undefined;
-  let retryAfterSeconds: number | undefined;
-  try {
-    await runNextStep(id.data);
-  } catch (e) {
-    if (e instanceof LLMRateLimitError) {
-      error = e.daily ? DAILY_QUOTA_LETTER_MESSAGE : e.message;
-      retryAfterSeconds = e.retryAfterSeconds;
-    } else if (e instanceof LLMValidationError) {
-      error = "Le modèle n'a pas produit de réponse exploitable pour cette étape. Réessaie.";
-    } else if (e instanceof LLMError) {
-      error = e.message;
-    } else {
-      console.error("Génération de la lettre :", e);
-      error = "Erreur inattendue pendant la génération. Réessaie.";
-    }
-  }
-
-  const view = await getLetterView(id.data);
-  if (!view) return { error: "Lettre introuvable." };
-  return { view, error, retryAfterSeconds };
 }

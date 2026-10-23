@@ -12,15 +12,11 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "check:fts5": "node scripts/check-fts5.mjs",
-    "letter:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/letter-smoke.ts",
     "cominty:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe scripts/cominty-smoke.ts",
-    "demo:seed": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/demo-seed.ts",
-    "llm:smoke": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/llm-smoke.ts"
+    "demo:seed": "%USERPROFILE%\\.bun\\bin\\bun.exe --preload ./tests/helpers/preload.ts scripts/demo-seed.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
     "@base-ui/react": "^1.9.0",
-    "@google/genai": "^2.30.0",
     "@gsap/react": "^2.1.2",
     "@hookform/resolvers": "5.9.1",
     "@mozilla/readability": "0.6.0",

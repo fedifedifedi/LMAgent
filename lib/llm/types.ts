@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-export type ProviderName = "mock" | "anthropic" | "gemini" | "cominty";
+export type ProviderName = "mock" | "cominty";
 
 export type TokenUsage = {
   inputTokens: number;

@@ -8,7 +8,6 @@ import { DEFAULT_TEMPLATE, isLetterTemplate, type LetterTemplate } from "@/lib/l
 import { buildSourceCatalog } from "@/lib/agent/sources";
 import { db } from "@/lib/db";
 import type { LlmStep } from "@/lib/generated/prisma/enums";
-import { nextStep, type LetterStep } from "@/lib/letters/pipeline";
 import { ProfileSchema } from "@/lib/schemas/profile";
 
 export type LetterHeader = {
@@ -48,7 +47,6 @@ export type LetterView = {
   error: string | null;
   offerText: string;
   offerUrl: string | null;
-  next: LetterStep | null;
   analysis: OfferAnalysis | null;
   match: ProfileMatch | null;
   critique: Critique | null;
@@ -101,7 +99,6 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
     error: letter.error,
     offerText: letter.offerText,
     offerUrl: letter.offerUrl,
-    next: nextStep(letter),
     analysis,
     match,
     critique: (letter.critique as Critique | null) ?? null,

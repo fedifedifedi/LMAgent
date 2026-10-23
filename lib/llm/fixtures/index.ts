@@ -1,4 +1,3 @@
-import letterCritique from "./letter_critique.json";
 import letterDraft from "./letter_draft.json";
 import offerAnalysis from "./offer_analysis.json";
 import profileDraft from "./profile_draft.json";
@@ -14,6 +13,5 @@ export const MOCK_FIXTURES: Record<string, unknown> = {
   offer_analysis: offerAnalysis,
   profile_match: profileMatch,
   letter_draft: letterDraft,
-  letter_critique: letterCritique,
   profile_summary: profileSummary,
 };

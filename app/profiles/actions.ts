@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { suggestProfileSummary } from "@/lib/agent/letter-agent";
+import { suggestProfileSummary } from "@/lib/agent/profile-summary";
 import { db } from "@/lib/db";
 import { LLMError } from "@/lib/llm";
 import type { LLMUsage } from "@/lib/llm/types";

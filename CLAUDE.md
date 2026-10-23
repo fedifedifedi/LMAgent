@@ -27,10 +27,10 @@ lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall
   Bouton « Proposer un résumé » (rédigé par le modèle à partir du profil, relu par l'utilisateur) dans le formulaire du profil.
 - **8. Design et export PDF** : fait — 3 templates (Moderne par défaut, Classique et Compact au choix sur chaque lettre ;
   référence https://claude.ai/artifact/CBUj8Zqo38vCjGKP4XRCp1), export PDF, réduction automatique, « Modifier le texte »,
-  accueil animé. Test complet dans le navigateur avec Gemini et une vraie offre : fait par l'utilisateur (retour attendu).
+  accueil animé. Test réel via l'interface avec l'agent Cominty : fait (RAPPORT-COMINTY.md).
 - **Plus tard** : bouton « Raccourcir la lettre » (réécriture par le modèle quand la lettre dépasse une page même à 10 pt).
 - **9. RAG sur documents** : téléversement des documents du profil, découpage, recherche FTS5 branchée sur matchProfile,
-  puis recherche hybride avec embeddings Gemini (fusion RRF).
+  puis recherche hybride avec embeddings (fusion RRF) — fournisseur d'embeddings à choisir : toute l'IA doit passer par Cominty.
 - Plus tard : authentification.
 
 ## Design et animations
@@ -72,8 +72,9 @@ lettre (analyse, étapes animées, sources et surlignage à la demande), LlmCall
   apparition de la lettre à l'étape 7, animations marquées de l'accueil et templates de lettre à l'étape 8.
 
 ## Stack
-Next.js 16 (App Router, Cache Components), TypeScript strict, Tailwind, shadcn/ui, @anthropic-ai/sdk, @google/genai, Zod,
-Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF).
+Next.js 16 (App Router, Cache Components), TypeScript strict, Tailwind, shadcn/ui, agent managé Cominty (client REST maison,
+lib/cominty), Zod, Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core + pdf-lib (PDF).
+Déploiement : Dockerfile + railway.json (volume /data pour SQLite, Chromium dans l'image).
 
 ## Environnement (important)
 - Windows + PowerShell.
@@ -84,9 +85,10 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
   comme du Windows-1252 et corrompt les accents. Utiliser les outils d'édition de fichiers.
 - Lancer le projet avec : npm run dev
 - Tests : npm test (bun test, une base SQLite temporaire migrée, partagée par les fichiers de test).
-  Test réel du provider configuré : npm run llm:smoke / npm run letter:smoke (n'affichent jamais la clé).
-  NE JAMAIS lancer un test réel (Gemini ou autre) sans demander d'abord à l'utilisateur : quota gratuit limité.
-  Vérifications : provider mock ($env:LLM_PROVIDER = "mock" pour le processus, sans toucher .env.local).
+  Test réel de l'agent : npm run cominty:smoke (UN appel, max_steps 3 ; n'affiche jamais la clé).
+  NE JAMAIS lancer un appel réel à Cominty sans l'accord explicite de l'utilisateur : crédits payants.
+  Vérifications : mode mock ($env:LLM_PROVIDER = "mock" pour le processus, sans toucher .env.local), base de démo
+  temporaire (npm run demo:seed), jamais prisma/dev.db.
 - .env.local contient les clés API : ne jamais l'écraser, ne jamais le lire ni l'afficher. Variables : voir .env.example.
 - PDF : puppeteer-core (PAS puppeteer, pas de Chrome téléchargé) avec Edge local, chemin dans CHROME_PATH (.env.local) :
   C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
@@ -123,24 +125,14 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
 - Lettres : suppression avec confirmation sur la page de la lettre (deleteLetterAction, LlmCall en cascade).
 - Disponibilité : seul contractTypes est obligatoire. Réalisations : 0 minimum (avertissement). Messages Zod en français.
 
-## LLM (lib/llm/)
-- Point d'entrée : generateObject({ output, system, prompt, reasoning }) de lib/llm (server-only). Provider via LLM_PROVIDER
-  (mock par défaut | anthropic | gemini), modèle via LLM_MODEL (obligatoire hors mock, JAMAIS de nom de modèle en dur).
-  embed() viendra à l'étape 9.
-- Les providers ne font que traduire ; validation Zod, relances (MAX_ATTEMPTS = 3 appels) et cumul des tokens
-  sont dans lib/llm/generate.ts. Chaque appel renvoie usage (table LlmCall à l'étape 7).
-- Niveaux de modèle (économie du quota) : analyzeOffer et matchProfile utilisent LLM_MODEL_FAST s'il est défini
-  (tier "fast" de generateObject / getProvider), sinon LLM_MODEL ; rédaction, critique, réécriture et extraction du CV
-  restent sur LLM_MODEL.
-- reasoning : "low" pour la recopie structurée (extraction de CV, analyse d'offre), plus élevé pour writeLetter et critique.
-  Gemini : thinkingLevel (Gemini 3) ; Anthropic : output_config.effort.
+## LLM (lib/llm/) — étape 6 faite : Gemini, Anthropic et l'ancien pipeline en 5 étapes sont supprimés
+- Point d'entrée : generateObject({ output, system, prompt }) de lib/llm (server-only), pour l'import du CV et « Proposer un
+  résumé ». Provider via LLM_PROVIDER : mock (défaut, tests) | cominty (agent managé). Aucun autre provider.
+- Validation Zod, relances (MAX_ATTEMPTS = 3, dans la MÊME conversation Cominty) et cumul tokens / coût : lib/llm/generate.ts.
 - Sorties déclarées dans lib/schemas/llm-outputs.ts : `schema` = schéma cible STRICT envoyé au modèle (sans .catch(),
-  .default() ni .transform(), qui rendraient le JSON Schema permissif) ; `lenientSchema` = schéma tolérant appliqué ensuite.
-  Chaque sortie a une fixture mock lib/llm/fixtures/<name>.json (objet, ou liste servie par tentative).
-- Anthropic : output_config.format (JSON Schema), PAS de tool_choice forcé (400 sur Opus 5.5 / Sonnet 5.5 / Fable 5.1),
-  pas de temperature. Schéma adapté par sanitizeForAnthropic, pas par jsonSchemaOutputFormat du SDK (il perd les enums).
-- Gemini : @google/genai, responseJsonSchema filtré par sanitizeForGemini (pas de pattern : décrire les formats avec .describe()).
-  Les 429 ne sont pas retentés par le SDK : LLMRateLimitError avec message clair et délai (retryDelay).
+  .default() ni .transform()) ; `lenientSchema` = schéma tolérant appliqué ensuite. Fixture mock lib/llm/fixtures/<name>.json.
+- Provider cominty (lib/llm/providers/cominty.ts) : message « LMAgent task: <nom> » avec consignes, RÈGLES DE PREUVE
+  (lib/agent/evidence-rules.ts), JSON Schema et entrée ; JSON extrait même entouré de notes Markdown (lib/cominty/json.ts).
 
 ## Agent Cominty (exigence : toute l'IA passe par Cominty ; Gemini supprimé à l'étape 6)
 - Branche de travail : `cominty` (ne pas pousser sur master/main sans accord). Agent managé déjà configuré sur
@@ -161,25 +153,20 @@ Prisma + libSQL (SQLite), unpdf, GSAP + @gsap/react, Lenis, puppeteer-core (PDF)
 - Mock (défaut, tests, captures) : faux agent lib/cominty/mock-client.ts (une question puis la lettre). Test réel :
   npm run cominty:smoke (UN appel, max_steps 3) — TOUJOURS demander l'accord avant (crédits). max_steps par défaut : 3.
 
-## Pipeline de l'agent (lib/agent/, lib/letters/) — ancien pipeline Gemini, remplacé par l'agent Cominty pour les nouvelles lettres
-analyzeOffer (reasoning low) → matchProfile (medium) → writeLetter (high) → critique (high) → au plus UNE réécriture (high).
-Chaque étape = une fonction (lib/agent/letter-agent.ts), sortie validée par un schéma Zod (lib/agent/schemas.ts).
+## Lettre par l'agent : règles métier (lib/agent/)
 - Sources : catalogue du profil (lib/agent/sources.ts : ids des expériences, projets, formations + profile-summary,
-  profile-availability, profile-skills, profile-languages, avec libellés lisibles). Les schémas de matchProfile et writeLetter
-  sont construits par profil avec un z.enum de ces ids : le modèle ne peut pas citer une source inexistante.
-- Lettre : 250 à 350 mots dans les paragraphes, une phrase = { text, sourceIds } (vide si aucun fait sur le candidat).
-  En-tête (nom, coordonnées, destinataire, lieu et date) construit par le code (lib/letters/view.ts), jamais par le modèle.
-  Contact nommé dans l'offre : la lettre s'adresse à lui (civilité seulement si écrite, sinon « Bonjour Prénom Nom, » /
-  « Dear Firstname Lastname, »). Conventions anglaises pour les offres en anglais.
-- Vérifications du code (lib/agent/letter-checks.ts) en plus de la critique : longueur, langue, compétence absente revendiquée,
-  contact ignoré. Problèmes restants après la réécriture : Letter.checks, affichés « Points à vérifier ».
-- Exécution : une étape par appel de Server Action (runLetterStepAction), l'étape suivante se déduit des champs remplis
-  (lib/letters/pipeline.ts) ; échec (ex. 429) → status FAILED + error, bouton « Reprendre » qui repart de l'étape en échec.
-  Chaque appel → une ligne LlmCall (succès ou échec), affichée dans « Détails de la génération ».
+  profile-availability, profile-skills, profile-languages) + candidate-answers (réponses aux questions de l'agent).
+  Ids validés par un z.enum : l'agent ne peut pas citer une source inexistante (lib/agent/agent-reply.ts).
+- Chaque message à l'agent contient le contrat JSON complet ET les règles de preuve : au test réel, l'agent a IGNORÉ la
+  section « LMAgent mode » de ses instructions mais suit le format écrit dans le message.
+- Lettre : 250 à 350 mots, une phrase = { text, sourceIds }. En-tête, lieu, date et signature construits par le code
+  (lib/letters/view.ts), jamais par l'agent. Contact nommé dans l'offre : la lettre s'adresse à lui.
+- Vérifications du code (lib/agent/letter-checks.ts) : longueur, langue, compétence absente revendiquée, contact ignoré ;
+  résultat dans Letter.checks, affiché « Points à vérifier ».
 - Offre par lien : lib/offer/fetch-offer.ts (JSON-LD JobPosting puis Readability + linkedom ; SSRF : adresses privées
   refusées aussi après redirection, ports 80/443, 10 s, 2 Mo). Échec → message et bascule sur « Coller le texte ».
-- Mock : fixtures offer_analysis, profile_match, letter_draft, letter_critique, profile_summary ; "{{source:N}}" remplacé par
-  le N-ième id autorisé du schéma reçu (marche avec n'importe quel profil). Test réel : npm run letter:smoke.
+- Pièges Cominty constatés : ids d'événements NON uniques (positions du flux : clé = id + étape + nom + phase, tri par
+  correlation_id) ; POST /chat/{thread} renvoie le message, pas la conversation ; horodatages non monotones.
 
 ## Lettre : mise en page, retouches, PDF
 - Templates : lib/letters/templates.ts (basePt) + components/letter/letter-document.tsx (un composant, aperçu ET PDF ;
@@ -199,7 +186,7 @@ Chaque étape = une fonction (lib/agent/letter-agent.ts), sortie validée par un
 - Recherche : SQLite FTS5, tokenizer `unicode61 remove_diacritics 2` (pas porter, documents FR et EN).
 - Requête FTS5 toujours échappée (buildFtsQuery dans lib/rag/search.ts) : chaque terme entre guillemets doubles, joints par OR.
   search() accepte une chaîne ou une liste de termes (venant d'analyzeOffer). Par défaut, seuls les documents "fact" sont cherchés.
-- Architecture prévue pour une recherche hybride BM25 + embeddings (fusion RRF), activable avec une clé Gemini
+- Architecture prévue pour une recherche hybride BM25 + embeddings (fusion RRF), activable avec un fournisseur d'embeddings compatible avec l'exigence « tout par Cominty »
   (FTS5 seul ne relie pas une offre en anglais à des documents en français).
 - Embeddings : recherche vectorielle native de libSQL (colonne F32_BLOB(dim) sur Chunk + index vectoriel, requête vector_top_k),
   ajoutée en SQL brut dans une migration quand le modèle d'embeddings (donc la dimension) sera choisi. Pas de champ embedding Bytes.
