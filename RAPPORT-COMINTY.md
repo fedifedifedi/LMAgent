@@ -1,5 +1,33 @@
 # Rapport — intégration de l'agent Cominty (branche `cominty`)
 
+## Mise à jour du 23 octobre (soir) — protection des crédits et étape 6
+
+Aucun appel réel à Cominty pendant cette session : tout a été vérifié avec le mock et le rejeu.
+159 tests passent, lint, typecheck et build propres.
+
+| Commit | Tâche | Résultat |
+|---|---|---|
+| `c703d27` | Règles de preuve | envoyées dans chaque message (lettre, correction, import du CV, résumé) : ne jamais déduire (année, niveau, « maîtrise »), une technique ne compte que si elle est écrite dans le texte de l'expérience, jamais de transfert entre expériences |
+| `684730f` | Étape 6 | Gemini, Anthropic (SDK, providers, `LLM_MODEL*`) et l'ancien pipeline en 5 étapes supprimés ; `LLM_PROVIDER` = `mock` ou `cominty` ; README, `.env.example`, CLAUDE.md à jour |
+| `39911fc` | Protection des crédits | code d'accès `DEMO_ACCESS_CODE` (page `/acces`, toujours exigé en production) ; plafond `COMINTY_BUDGET_USD` (3 $) vérifié avant chaque message, dépense comptée par message facturé (table `ComintyCharge`) ; démo sans code = rejeu du vrai run enregistré, même affichage en direct, aucun appel |
+
+Vérifié dans le navigateur (mode cominty, production, sans code) : la démo rejoue le run en ~5 s avec le badge
+« Rejeu d'un vrai run enregistré · aucun appel » ; l'import d'un CV est refusé avec un lien vers `/acces` ; la page
+affiche « Dépense Cominty : 0,00 $ sur un plafond de 3,00 $ ».
+
+Docker : Docker Desktop démarré, `docker build --check` sans avertissement, mais **la construction complète échoue sur
+cette machine** : le téléchargement des images de base (Bun puis Node) est corrompu en route (`tls: bad record MAC`, deux
+essais + `docker pull`), le même problème réseau que pour les gros téléchargements npm. Railway construit l'image sur
+ses serveurs : non concerné. À retenter sur un autre réseau, ou directement sur Railway.
+
+Points d'attention :
+- Le rejeu montre la lettre du vrai run, écrite **avant** les règles de preuve : on y retrouve « deuxième année de
+  master » et « cycle complet ». Un nouveau run réel (avec ton accord, ~0,18 $) donnerait un enregistrement plus propre.
+- La dépense déjà engagée pendant les tests (~0,58 $ en tout) n'est pas dans `ComintyCharge` : le plafond part de 0.
+- Sans `DEMO_ACCESS_CODE`, une installation en production n'autorise que la démo enregistrée (sécurité par défaut).
+
+---
+
 Date : 23 octobre 2026. Toute l'IA de LMAgent passe désormais par l'agent managé Cominty (`LLM_PROVIDER=cominty`). Le
 mock reste le mode par défaut, pour les tests et la démo locale.
 
