@@ -130,7 +130,7 @@ export function CvImportForm() {
             />
           </label>
           <p className="text-sm text-muted-foreground">
-            Une photo ou un PDF scanné est lu directement par le modèle : ce qui est illisible est laissé vide, à toi de le compléter.
+            Une photo ou un PDF scanné est lu directement par l&apos;agent : ce qui est illisible est laissé vide, à toi de le compléter.
           </p>
 
           {preparing && <p className="text-sm text-muted-foreground">Préparation de l&apos;image…</p>}
@@ -190,8 +190,12 @@ export function CvImportForm() {
         <Button type="submit" disabled={!canSubmit} className="btn-shine">
           {pending ? "Analyse en cours…" : "Analyser le CV"}
         </Button>
-        {pending && <p className="text-sm text-muted-foreground">Extraction du profil par le modèle, quelques secondes…</p>}
+        {pending && <p className="text-sm text-muted-foreground">Extraction du profil par l&apos;agent, quelques secondes…</p>}
       </div>
+      <p className="text-xs text-muted-foreground">
+        Ton CV est envoyé à Cominty, le service d&apos;agent IA utilisé par LMAgent, pour être analysé. Rien n&apos;est
+        enregistré dans ton profil tant que tu ne l&apos;as pas vérifié.
+      </p>
     </form>
   );
 }

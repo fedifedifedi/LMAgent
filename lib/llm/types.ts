@@ -1,12 +1,14 @@
 import type { z } from "zod";
 
-export type ProviderName = "mock" | "anthropic" | "gemini";
+export type ProviderName = "mock" | "anthropic" | "gemini" | "cominty";
 
 export type TokenUsage = {
   inputTokens: number;
   outputTokens: number;
   /** Tokens d'entrée servis depuis le cache (sous-ensemble de inputTokens). */
   cacheReadTokens?: number;
+  /** Coût facturé en dollars, quand le provider le donne (Cominty). */
+  costUsd?: number;
   /** true pour le mock : estimation (~4 caractères par token), pas un comptage réel. */
   estimated?: boolean;
 };

@@ -95,6 +95,7 @@ export async function generateObject<T extends z.ZodObject, L extends z.ZodType 
     if (completion.usage.cacheReadTokens !== undefined) {
       usage.cacheReadTokens = (usage.cacheReadTokens ?? 0) + completion.usage.cacheReadTokens;
     }
+    if (completion.usage.costUsd !== undefined) usage.costUsd = (usage.costUsd ?? 0) + completion.usage.costUsd;
     if (completion.usage.estimated) usage.estimated = true;
 
     lastText = completion.text;

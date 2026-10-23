@@ -8,7 +8,7 @@ const optionalString = z.preprocess((value) => (value === "" ? undefined : value
 const EnvSchema = z.object({
   LLM_PROVIDER: z.preprocess(
     (value) => (value === "" ? undefined : value),
-    z.enum(["mock", "anthropic", "gemini"]).default("mock"),
+    z.enum(["mock", "anthropic", "gemini", "cominty"]).default("mock"),
   ),
   LLM_MODEL: optionalString,
   /** Modèle plus léger pour les étapes de recopie et de comparaison (analyse d'offre, correspondance). */
@@ -19,6 +19,8 @@ const EnvSchema = z.object({
 
 export type LLMConfig =
   | { provider: "mock" }
+  /** Agent managé Cominty : configuration propre (COMINTY_*), lue par lib/cominty ; pas de LLM_MODEL. */
+  | { provider: "cominty" }
   | { provider: "anthropic" | "gemini"; model: string; apiKey: string };
 
 /**
@@ -35,7 +37,7 @@ export function readLLMConfig(env: Record<string, string | undefined> = process.
   }
   const { LLM_PROVIDER: provider, LLM_MODEL: mainModel, LLM_MODEL_FAST: fastModel } = parsed.data;
   const model = tier === "fast" ? (fastModel ?? mainModel) : mainModel;
-  if (provider === "mock") return { provider };
+  if (provider === "mock" || provider === "cominty") return { provider };
 
   const keyName = provider === "anthropic" ? "ANTHROPIC_API_KEY" : "GEMINI_API_KEY";
   const apiKey = parsed.data[keyName];

@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { readLLMConfig, type ModelTier } from "@/lib/llm/config";
 import { generateObject as generateWith, type GenerateObjectRequest } from "@/lib/llm/generate";
 import { createAnthropicProvider } from "@/lib/llm/providers/anthropic";
+import { createComintyProvider, defaultClient } from "@/lib/llm/providers/cominty";
 import { createGeminiProvider } from "@/lib/llm/providers/gemini";
 import { createMockProvider } from "@/lib/llm/providers/mock";
 import type { LLMProvider } from "@/lib/llm/types";
@@ -22,6 +23,8 @@ export function getProvider(env: Record<string, string | undefined> = process.en
       return createAnthropicProvider(config);
     case "gemini":
       return createGeminiProvider(config);
+    case "cominty":
+      return createComintyProvider(defaultClient(env));
   }
 }
 
