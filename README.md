@@ -131,7 +131,31 @@ Les clés restent côté serveur et ne sont jamais envoyées au navigateur. `.en
 | `npm test` | Tests (`bun test`, sans appel réel à un modèle) |
 | `npm run lint` | ESLint |
 | `npm run demo:seed` | Base de démonstration fictive (Léa Dubois) dans un dossier temporaire |
+| `npm run cominty:smoke` | Un appel réel à l'agent Cominty (profil fictif, `max_steps` 3) : consomme des crédits |
 | `npm run llm:smoke` / `npm run letter:smoke` | Test réel du provider configuré (consomme du quota) |
+
+## Déploiement sur Railway
+
+Le dépôt contient un `Dockerfile` (Node 22, Bun, Chromium pour le PDF) et un `railway.json` : Railway construit l'image
+et applique les migrations à chaque démarrage (`prisma migrate deploy`).
+
+1. **Nouveau projet** → *Deploy from GitHub repo* → ce dépôt (branche `cominty`).
+2. **Volume** (Settings → Volumes) monté sur `/data` : la base SQLite y est conservée entre les déploiements
+   (`DATABASE_URL=file:/data/lmagent.db`, valeur par défaut de l'image).
+3. **Variables** (Settings → Variables), sans jamais les commiter :
+
+   | Variable | Valeur |
+   |---|---|
+   | `LLM_PROVIDER` | `cominty` (ou `mock` pour une démo sans crédit) |
+   | `COMINTY_API_KEY`, `COMINTY_USER_ID`, `COMINTY_AGENT_ID` | identifiants de l'agent (platform.cominty.ai) |
+   | `DEMO_ENABLED` | `0` pour masquer le bouton de démo |
+
+   `PORT`, `CHROME_PATH`, `CHROME_NO_SANDBOX`, `PDF_RENDER_ORIGIN` et `DATABASE_URL` ont des valeurs par défaut dans
+   l'image : inutile de les définir. Détail de toutes les variables : `.env.example`.
+4. **Domaine** (Settings → Networking → *Generate Domain*).
+
+> L'application n'a pas encore d'authentification : une URL publique permet à n'importe qui d'importer un CV et de
+> lancer l'agent sur tes crédits Cominty. Garde l'URL privée, ou utilise `LLM_PROVIDER=mock` pour une démo publique.
 
 ## Structure
 

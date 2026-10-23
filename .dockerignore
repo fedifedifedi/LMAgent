@@ -1,0 +1,13 @@
+# Jamais dans l'image : secrets, bases locales, artefacts de build.
+.env*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+node_modules
+.next
+lib/generated
+.git
+docs/screenshots
+*.tmp.ts

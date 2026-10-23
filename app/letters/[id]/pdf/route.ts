@@ -4,6 +4,15 @@ import { isLetterTemplate, minScale, DEFAULT_TEMPLATE, LETTER_TEMPLATES } from "
 import { pdfFileName } from "@/lib/letters/file-name";
 import { PdfError, renderPdf } from "@/lib/pdf/render";
 
+/**
+ * Adresse à laquelle Chromium ouvre la page d'impression. En déploiement (derrière le proxy de Railway), on passe par
+ * le serveur local plutôt que par l'URL publique : PDF_RENDER_ORIGIN, où {PORT} est remplacé par le port d'écoute.
+ */
+function renderOrigin(request: NextRequest): string {
+  const configured = process.env.PDF_RENDER_ORIGIN?.trim();
+  return configured ? configured.replace("{PORT}", process.env.PORT ?? "3000") : request.nextUrl.origin;
+}
+
 /** Export PDF de la lettre (puppeteer-core + Edge) ; en-têtes x-letter-* pour l'avertissement de débordement. */
 export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]/pdf">) {
   const { id } = await ctx.params;
@@ -13,7 +22,7 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]
   const template = isLetterTemplate(letter.template) ? letter.template : DEFAULT_TEMPLATE;
   const analysis = letter.analysis as { jobTitle?: string; company?: string } | null;
   try {
-    const { pdf, scale, overflow } = await renderPdf(new URL(`/letters/${id}/print`, request.nextUrl.origin).toString(), minScale(template));
+    const { pdf, scale, overflow } = await renderPdf(new URL(`/letters/${id}/print`, renderOrigin(request)).toString(), minScale(template));
     const name = pdfFileName(analysis?.jobTitle, analysis?.company);
     return new Response(Buffer.from(pdf), {
       headers: {
