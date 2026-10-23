@@ -138,5 +138,5 @@ sur tes crédits. Garde l'URL privée, ou déploie en `LLM_PROVIDER=mock` pour u
    le permet.
 5. Construire et tester l'image Docker, puis déployer sur Railway ; ajouter une protection d'accès avant toute URL
    publique.
-6. Pousser la branche `cominty` (fait à chaque étape validée ; les derniers commits sont à pousser) et, quand tu le
-   décides, ouvrir une pull request vers `master`.
+6. La branche `cominty` est poussée sur GitHub (`master` intact) : quand tu le décides, ouvrir une pull request vers
+   `master`.
