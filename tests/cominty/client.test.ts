@@ -135,9 +135,9 @@ describe("createComintyClient", () => {
     });
   });
 
-  test("sendMessage : POST /chat/{thread}, max_steps personnalisé", async () => {
-    const { impl, calls } = fakeFetch(() => json(THREAD));
-    await createComintyClient(CONFIG, impl).sendMessage("thread-1", "Leur expertise", { maxSteps: 2 });
+  test("sendMessage : POST /chat/{thread} renvoie le nouveau message assistant (pas la conversation)", async () => {
+    const { impl, calls } = fakeFetch(() => json(THREAD.messages[1]));
+    expect(await createComintyClient(CONFIG, impl).sendMessage("thread-1", "Leur expertise", { maxSteps: 2 })).toEqual({ threadId: "thread-1", messageId: "msg-assistant" });
     expect(calls[0].url).toBe("https://cominty.test/chat/thread-1");
     expect((calls[0].body as { options: { max_steps: number } }).options.max_steps).toBe(2);
   });

@@ -64,9 +64,14 @@ export function createComintyClient(config: ComintyConfig = readComintyConfig(),
       return started(await request("POST", "/chat", { body: messageBody(content, options), signal: options.signal }));
     },
 
-    /** Message suivant dans une conversation existante (dont la réponse à une question de l'agent). */
+    /**
+     * Message suivant dans une conversation existante (dont la réponse à une question de l'agent).
+     * Contrairement à POST /chat, la réponse est le nouveau message assistant, pas la conversation (cf. SDK).
+     */
     async sendMessage(threadId: string, content: string, options: SendOptions = {}): Promise<StartedMessage> {
-      return started(await request("POST", `/chat/${encodeURIComponent(threadId)}`, { body: messageBody(content, options), signal: options.signal }));
+      const response = await request("POST", `/chat/${encodeURIComponent(threadId)}`, { body: messageBody(content, options), signal: options.signal });
+      const message = MessageSchema.parse(await response.json());
+      return { threadId: message.thread_id, messageId: message.id };
     },
 
     /** Événements du message puis le message final. lastEventId : reprise après coupure, sans relancer l'agent. */
