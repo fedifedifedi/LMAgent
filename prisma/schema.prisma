@@ -64,6 +64,8 @@ model CvImport {
 /// FINAL est conservé pour compatibilité (non utilisé).
 enum LetterStatus {
   DRAFT
+  /// L'agent Cominty attend les réponses du candidat (questions de AgentRun.questions).
+  NEEDS_INPUT
   GENERATED
   FAILED
   FINAL
@@ -93,6 +95,8 @@ model Letter {
   template  String       @default("moderne")
   /// Problèmes détectés par le code (longueur, compétences absentes revendiquées...) restant sur la lettre finale.
   checks    Json?
+  /// Sortie de l'agent Cominty hors lettre : { score, scoreReasons, cvAdjustments } (lib/agent/agent-reply.ts).
+  insights  Json?
   status    LetterStatus @default(DRAFT)
   /// Dernière erreur (étape en échec), effacée à la reprise.
   error     String?
@@ -100,6 +104,7 @@ model Letter {
   updatedAt DateTime     @updatedAt
   documents Document[]
   llmCalls  LlmCall[]
+  agentRuns AgentRun[]
 
   @@index([profileId])
 }
@@ -111,6 +116,8 @@ enum LlmStep {
   CRITIQUE
   REWRITE
   PROFILE_SUMMARY
+  /// Un tour de l'agent Cominty sur la lettre (démarrage, réponse aux questions ou correction).
+  AGENT_LETTER
 }
 
 /// Un appel generateObject (toutes tentatives cumulées) : suivi des tokens par lettre et par étape.
@@ -129,11 +136,69 @@ model LlmCall {
   attempts        Int
   durationMs      Int
   estimated       Boolean  @default(false)
+  /// Coût facturé en dollars, quand le provider le donne (Cominty).
+  costUsd         Float?
   success         Boolean
   error           String?
   createdAt       DateTime @default(now())
 
   @@index([letterId])
+}
+
+enum AgentRunKind {
+  /// Premier message : profil, sources autorisées et offre.
+  START
+  /// Réponses du candidat aux questions de l'agent.
+  ANSWER
+  /// Relance automatique quand le JSON de l'agent ne respecte pas le schéma (une seule par lettre).
+  CORRECTION
+}
+
+enum AgentRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+/// Un message de l'agent Cominty pour une lettre : suivi en direct, reprenable (lastEventId) après une coupure.
+model AgentRun {
+  id          String         @id @default(cuid())
+  letterId    String
+  letter      Letter         @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  threadId    String
+  messageId   String         @unique
+  kind        AgentRunKind
+  status      AgentRunStatus @default(RUNNING)
+  /// Questions natives de Cominty ({ prompt, options }[]) quand l'agent attend une réponse.
+  questions   Json?
+  /// Dernier événement reçu : reprise du flux sans relancer l'agent.
+  lastEventId String?
+  error       String?
+  createdAt   DateTime       @default(now())
+  finishedAt  DateTime?
+  events      AgentEvent[]
+
+  @@index([letterId])
+}
+
+/// Événement du flux Cominty, conservé pour réafficher les étapes de l'agent après un rechargement.
+model AgentEvent {
+  id            String   @id @default(cuid())
+  runId         String
+  run           AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  /// Id de l'événement chez Cominty (unique par run).
+  eventId       String
+  /// Les phases running / success d'une même étape partagent ce numéro.
+  correlationId Int
+  name          String
+  status        String
+  /// Libellé lisible affiché dans l'interface.
+  label         String
+  at            DateTime
+
+  @@unique([runId, eventId])
+  @@index([runId])
 }
 
 enum DocumentKind {
