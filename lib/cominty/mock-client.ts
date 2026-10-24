@@ -72,7 +72,14 @@ function event(n: number, correlation: number, name: string, status: "running" |
 /** readyReply : réponse « ready » personnalisée (ex. scripts/demo pour Léa Dubois), sinon celle des fixtures du mock. */
 /** correctionReply : réponse à la relecture ciblée ; par défaut, chaque phrase signalée ([P2.S1]) est retirée. */
 export function createMockComintyClient(
-  options: { delayMs?: number; askFirst?: boolean; readyReply?: (allowedIds: string[]) => unknown; correctionReply?: (allowedIds: string[], content: string) => unknown } = {},
+  options: {
+    delayMs?: number;
+    askFirst?: boolean;
+    readyReply?: (allowedIds: string[]) => unknown;
+    correctionReply?: (allowedIds: string[], content: string) => unknown;
+    /** Réponse « needs_input » et question personnalisées (ex. scripts/demo pour Léa Dubois). */
+    needsInput?: { reply: unknown; question: { prompt: string; options: string[] } };
+  } = {},
 ): AgentClient {
   const delayMs = options.delayMs ?? 350;
   const askFirst = options.askFirst ?? true;
@@ -80,7 +87,7 @@ export function createMockComintyClient(
   const byMessage = new Map<string, { thread: MockThread; turn: MockTurn }>();
 
   function replyTo(thread: MockThread, content: string): unknown {
-    if (askFirst && thread.turns.length === 0) return mockNeedsInput();
+    if (askFirst && thread.turns.length === 0) return options.needsInput?.reply ?? mockNeedsInput();
     if (content.includes("relecture ciblée")) {
       const refs = [...content.matchAll(/^\[(P\d+\.S\d+)\]/gm)].map((m) => m[1]);
       return (options.correctionReply ?? (() => ({ status: "corrections", replacements: refs.map((ref) => ({ ref, text: "", sourceIds: [] })) })))(thread.allowedIds, content);
@@ -103,7 +110,7 @@ export function createMockComintyClient(
       role: "assistant",
       content: text,
       status: "success",
-      questions: ask ? [MOCK_QUESTION] : [],
+      questions: ask ? [options.needsInput?.question ?? MOCK_QUESTION] : [],
       files: [],
     };
     const cost = { failed: false, input_tokens: Math.ceil(content.length / 4), cached_tokens: 0, output_tokens: Math.ceil(text.length / 4), input_cost: 0, output_cost: 0, total: 0 };

@@ -13,7 +13,7 @@
       "sentences": [
         { "text": "Lors de mon stage de data analyst chez Banque Atlantique, j'ai construit en Python, avec scikit-learn, un modèle de scoring de churn dont la précision dépasse de 12 % celle du modèle existant.", "sourceIds": ["exp-banque-atlantique-2025"] },
         { "text": "J'y ai aussi automatisé en SQL l'extraction mensuelle des données clients, ce qui m'a appris à fiabiliser une chaîne de données avant de la modéliser.", "sourceIds": ["exp-banque-atlantique-2025"] },
-        { "text": "J'ai enfin conçu des tableaux de bord Power BI utilisés par 40 conseillers, une expérience directement utile pour restituer vos prévisions à vos clients.", "sourceIds": ["exp-banque-atlantique-2025"] }
+        { "text": "Mes tableaux de bord Power BI y sont utilisés par 40 conseillers, une expérience directement utile pour restituer vos prévisions à vos clients.", "sourceIds": ["exp-banque-atlantique-2025"] }
       ]
     },
     {

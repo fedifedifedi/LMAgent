@@ -40,6 +40,19 @@ const letterOf = (sentences: Array<[string, string[]]>): LetterContent => ({
   closing: "Bien à vous.",
 });
 
+describe("dates écrites en toutes lettres", () => {
+  test("« février 2027 » est prouvé par la disponibilité « 2027-02 » (démo Léa), pas par « 2027 » seul", () => {
+    const offer = "Démarrage : février 2027.";
+    const ctxOf = (startDate: string) => ({
+      ...evidenceContext(ProfileSchema.parse({ ...profile, availability: { contractTypes: ["pfe-internship"], startDate } }), offer),
+      analysis: { jobTitle: "Stage IA", company: "Nexora Labs" },
+    });
+    const sentence = letterOf([["Je suis disponible pour un stage de six mois à partir de février 2027.", ["profile-availability"]]]);
+    expect(checkEvidence(sentence, ctxOf("2027-02"))).toEqual([]);
+    expect(checkEvidence(sentence, ctxOf("2027")).map((i) => i.kind)).toContain("offer_term_unsourced");
+  });
+});
+
 describe("relecture des preuves (cas Nexora Labs)", () => {
   test("terme repris de l'offre sans source dans le CV : « découpage des documents »", () => {
     const issues = checkEvidence(letterOf([["Chez Wind Consulting et sur DocBot, j'ai travaillé sur le découpage des documents.", ["exp-wind-2026", "proj-docbot"]]]), context);

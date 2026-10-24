@@ -173,9 +173,16 @@ export function checkEvidence(letter: LetterContent, context: EvidenceContext): 
  * Contexte de relecture à partir du profil validé, du texte de l'offre et des réponses « Oui » du candidat (sources
  * candidate-answer-N, vérifiées comme un élément du CV : pas de verbe renforcé ni de statut ajouté).
  */
+const MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** « 2027-02 » se lit aussi « février 2027 » / « February 2027 » : la lettre écrit les dates en toutes lettres. */
+const withReadableDates = (text: string) =>
+  text.replace(/\b(\d{4})-(0[1-9]|1[0-2])\b/g, (date, year: string, month: string) => `${date} ${MONTHS_FR[Number(month) - 1]} ${year} ${MONTHS_EN[Number(month) - 1]} ${year}`);
+
 export function evidenceContext(profile: Profile, offerText: string, answers: CandidateAnswer[] = []): EvidenceContext {
   const entries = [
-    ...buildSourceCatalog(profile).map((entry) => ({ id: entry.id, label: entry.label, text: JSON.stringify(entry.content ?? "") })),
+    ...buildSourceCatalog(profile).map((entry) => ({ id: entry.id, label: entry.label, text: withReadableDates(JSON.stringify(entry.content ?? "")) })),
     ...answerSources(answers),
   ];
   return {

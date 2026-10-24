@@ -4,187 +4,127 @@
 
 # LMAgent
 
-**Lettre de Motivation Agent** : une lettre de motivation par offre d'emploi, écrite à partir de ton parcours, sans rien inventer.
+**Lettre de Motivation Agent** : une lettre de motivation par offre, écrite par un agent Cominty à partir de ton parcours, sans rien inventer.
+
+**[Essayer la version en ligne](https://lmagent-production.up.railway.app)**
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Prisma](https://img.shields.io/badge/Prisma-7_+_libSQL-2D3748?logo=prisma)
+![Cominty](https://img.shields.io/badge/IA-agent_managé_Cominty-1C2A4A)
 ![Tests](https://img.shields.io/badge/tests-bun_test-F9F1E1?logo=bun&logoColor=black)
 
 <img src="docs/screenshots/accueil-clair-1440x900@2x.png" alt="Page d'accueil de LMAgent" width="860" />
 
 </div>
 
-## Présentation
+## En bref
 
-LMAgent transforme un CV en lettres de motivation ciblées. L'utilisateur importe son CV (PDF, image ou texte collé).
-Un modèle de langage en extrait un profil structuré, que l'utilisateur vérifie et corrige avant de l'enregistrer.
-Pour chaque offre d'emploi (texte collé ou lien), un agent en plusieurs étapes rédige ensuite une lettre d'une page,
-dans la langue de l'offre.
+Une lettre de motivation générique se repère tout de suite, et une IA qui « enjolive » le CV fait plus de tort que de bien.
+LMAgent confie la lettre à un **agent managé Cominty** qui lit ton CV et l'offre, **te pose des questions** sur ce
+que ton CV ne prouve pas, écrit la lettre, puis la fait **relire par le code** : chaque phrase cite ses sources, et
+toute affirmation qui n'est pas écrite dans ton CV ou dans tes réponses est corrigée ou retirée.
 
-Le principe central est la **traçabilité** : chaque phrase de la lettre est reliée aux éléments du profil qui la justifient.
-Le modèle ne peut citer qu'une source qui existe dans le profil validé, et des vérifications dans le code
-signalent toute compétence revendiquée qui n'y figure pas.
+## Le parcours
 
-## Fonctionnalités
-
-**Import du CV**
-- PDF avec texte, PDF scanné, photo (JPG, PNG, WebP) ou texte collé ; glisser-déposer.
-- Extraction vers un schéma Zod strict ; les dates gardent la précision du CV (jamais de mois ou de jour inventé).
-- Lecture native par le modèle pour les images et les scans ; les passages illisibles sont laissés vides, pas devinés.
-
-**Vérification du profil**
-- Formulaire complet avec sommaire latéral, avertissements par section et brouillon conservé localement.
-- Détection des quasi-doublons de compétences, fusion d'un projet dans une expérience, résumé proposé par le modèle.
-- Fiche du profil : taux de complétude, parcours chronologique, compétences et nombre d'expériences qui les mobilisent.
-
-**Génération de la lettre**
-- Offre collée ou lue depuis un lien (JSON-LD `JobPosting` puis Readability, protégé contre le SSRF).
-- Un seul tour de l'agent managé **Cominty** : analyse de l'offre, score d'adéquation, forces et manques, lettre et
-  ajustements du CV, avec les étapes de l'agent affichées en direct.
-- Quand une information manque, l'agent pose ses questions (questions natives de Cominty), affichées en boutons.
-- Réponse validée par le code (sources autorisées, exigences de l'offre), une correction automatique si le format est
-  faux, reprise après une coupure.
-- Contrôles du code : 250 à 350 mots, langue de l'offre, compétences absentes du profil, contact nommé dans l'offre.
-- Suivi des tokens et du coût de chaque tour de l'agent.
-
-**Aperçu, retouches et PDF**
-- Trois mises en page (Moderne, Classique, Compact), un seul composant React pour l'aperçu et le PDF.
-- Sources et surlignage des compétences demandées, à l'affichage seulement.
-- Modification du texte : une phrase retouchée est marquée « modifiée par toi » ; retour possible à la version générée.
-- Export PDF A4 d'une page, avec réduction automatique du texte (jusqu'à 10 pt) et métadonnées neutralisées.
-
-**Interface**
-- Thème clair et sombre, animations GSAP sur l'accueil, apparitions discrètes ailleurs.
-- Respect de `prefers-reduced-motion`.
-
-## Captures d'écran
-
-| Import du CV | Vérification du profil |
+| | |
 |---|---|
-| <img src="docs/screenshots/import-cv-clair-1440x900@2x.png" alt="Import du CV par glisser-déposer" /> | <img src="docs/screenshots/verification-cv-clair-1440x900@2x.png" alt="Formulaire de vérification du profil" /> |
+| **1. Import du CV**<br>PDF, scan, photo ou texte collé. L'agent l'extrait en profil structuré, que tu vérifies et corriges. | <img src="docs/screenshots/import-cv-clair-1440x900@2x.png" alt="Import du CV par glisser-déposer" width="420" /> |
+| **2. L'offre**<br>Texte collé ou lien (lu côté serveur). L'agent l'analyse : poste, entreprise, contact, compétences demandées. | <img src="docs/screenshots/offre-clair-1440x900@2x.png" alt="Nouvelle lettre : offre collée pour le profil de démo" width="420" /> |
+| **3. Questions au candidat**<br>Pour chaque exigence que ton CV ne prouve pas (3 au plus), l'agent pose une question native Cominty : Oui (je précise), Non, Je souhaite l'apprendre, Passer. | <img src="docs/screenshots/questions-clair-1440x900@2x.png" alt="L'agent demande si le candidat a déjà utilisé Docker" width="420" /> |
+| **4. La lettre**<br>250 à 300 mots, dans la langue de l'offre, avec un score d'adéquation et des ajustements du CV. Chaque phrase est reliée à ses sources (« Stage Banque Atlantique, 2025 », « Réponse du candidat »). | <img src="docs/screenshots/lettre-sources-clair-1440x900@2x.png" alt="Lettre générée avec ses sources" width="420" /> |
+| **5. Relecture des preuves**<br>Le code repère les statuts transférés (« mis en production »), les verbes renforcés, les termes repris de l'offre sans preuve et les répétitions. L'agent corrige seulement ces phrases ; le avant / après reste visible. Puis export PDF A4. | <img src="docs/screenshots/relecture-clair-1440x900@2x.png" alt="Relecture : phrase corrigée avant et après" width="420" /> |
 
-| Fiche du profil | Lettre générée |
+## Comment LMAgent utilise l'agent Cominty
+
+Toute l'IA passe par Cominty : il n'y a aucun autre fournisseur de modèle.
+
+- **Deux agents managés** : l'agent des lettres (analyse, questions, rédaction, correction) et un agent rapide pour
+  l'extraction du CV et le résumé du profil.
+- **Client REST maison** (`lib/cominty`, d'après le SDK Python officiel) : création et suite de conversation, flux
+  JSONL repris là où il s'est coupé (`last-event-id`), annulation, questions natives, fichiers joints (CV scanné).
+- **Une conversation par lettre, en tours** :
+  1. analyse de l'offre et questions natives ;
+  2. lettre complète, en tenant compte des réponses (sans réécrire l'analyse) ;
+  3. si la relecture trouve un problème, correction **ciblée** : seules les phrases signalées sont renvoyées.
+     Une phrase encore fausse est retirée, sans nouveau tour.
+- **Étapes en direct** : chaque événement du flux (réflexion, outils, réponse) s'affiche dans une frise. Tu peux
+  quitter la page, le serveur suit l'agent jusqu'au bout.
+- **Contrat vérifié par le code** : JSON validé par Zod, ids de sources limités au profil et aux réponses, une
+  relance automatique si le format est faux.
+- **Protection des crédits** : code d'accès pour tout vrai appel, plafond de dépense, coût de chaque tour enregistré.
+
+## Architecture et choix techniques
+
+```
+Navigateur ── Server Actions ──► lib/letters/agent-run.ts ──► lib/cominty (REST + flux JSONL) ──► Agent Cominty
+    ▲                                   │
+    └──── étapes en direct (SSE) ───────┤
+                                        ├─► lib/agent : contrat JSON, sources, relecture des preuves
+                                        └─► Prisma + libSQL (SQLite) : profils, lettres, tours, étapes, coûts
+```
+
+| Choix | Pourquoi |
 |---|---|
-| <img src="docs/screenshots/profil-clair-1440x900@2x.png" alt="Fiche du profil avec complétude et parcours" /> | <img src="docs/screenshots/lettre-sources-clair-1440x900@2x.png" alt="Lettre générée avec les étapes de l'agent" /> |
+| Next.js 16 (App Router, Server Actions), TypeScript strict | Clés API uniquement côté serveur, une seule base de code |
+| Zod pour chaque sortie de l'agent | Le modèle ne peut citer qu'une source qui existe ; erreurs précises renvoyées à l'agent |
+| Relecture déterministe dans le code | Une règle vérifiable vaut mieux qu'une consigne au modèle : rien n'est affirmé sans preuve |
+| Tours et étapes enregistrés en base | Reprise après coupure, rejeu au rechargement, coût par tour |
+| SQLite via libSQL, Prisma 7 | Déploiement simple (un volume), recherche plein texte FTS5 prête pour les documents |
+| Un composant React pour l'aperçu et le PDF | Ce que tu vois est ce qui est exporté (puppeteer-core, métadonnées neutralisées) |
+| Faux agent `mock` | Tests et démo hors ligne, sans crédit |
 
-| Lettre en thème sombre | PDF exporté (page 1) |
-|---|---|
-| <img src="docs/screenshots/lettre-sources-sombre-1440x900@2x.png" alt="Page de la lettre en thème sombre" /> | <img src="docs/screenshots/pdf-page1-clair-1440x900@2x.png" alt="Première page du PDF exporté" /> |
+## Lancer le projet en local
 
-Les captures montrent un profil fictif (Léa Dubois) et une lettre générée en mode `mock` : `npm run demo:seed`
-crée cette base de démonstration (données dans `scripts/demo/`), sans toucher à `prisma/dev.db`.
-Toutes les pages existent aussi en thème sombre et au format 1080 × 1350 dans `docs/screenshots/`.
-
-## Technologies
-
-| Domaine | Choix |
-|---|---|
-| Application | Next.js 16 (App Router, Cache Components, Server Actions), React 19, TypeScript strict |
-| Interface | Tailwind CSS 4, shadcn/ui (Base UI), GSAP + SplitText, Lenis |
-| Formulaires et validation | react-hook-form, Zod |
-| Données | Prisma 7, SQLite via libSQL, recherche plein texte FTS5 |
-| IA | Agent managé Cominty (API REST, flux JSONL relayé en SSE), faux agent `mock` hors ligne |
-| Documents | unpdf (texte des PDF), Readability + linkedom (offres en ligne), puppeteer-core + pdf-lib (export PDF) |
-| Tests | `bun test`, base SQLite temporaire migrée |
-
-Toute l'IA passe par l'agent Cominty : client REST dans `lib/cominty`, lettre en un tour suivi en direct
-(`lib/letters/agent-run.ts`), import du CV et résumé via `lib/llm` (validation Zod, relances dans la même conversation,
-schéma tolérant en dernier recours). Chaque message rappelle à l'agent le format JSON attendu et les règles de preuve
-(ne rien déduire, ne jamais transférer une technique d'une expérience à une autre).
-
-## Installation
-
-### Prérequis
-
-- [Bun](https://bun.sh) (gestion des paquets et tests) et Node.js 20 ou plus récent.
-- Pour l'export PDF : Microsoft Edge ou Google Chrome installé localement.
-- Un agent Cominty configuré (platform.cominty.ai), **facultatif** : le mode `mock` fonctionne sans compte ni réseau.
-
-### Étapes
+Prérequis : [Bun](https://bun.sh), Node.js 20+, Edge ou Chrome (export PDF). Un compte Cominty est **facultatif** :
+le mode `mock` fonctionne sans réseau.
 
 ```bash
 git clone https://github.com/fedifedifedi/LMAgent.git
 cd LMAgent
-bun install                     # génère aussi le client Prisma (postinstall)
-cp .env.example .env.local      # puis compléter .env.local
-bunx prisma migrate deploy      # crée la base SQLite prisma/dev.db
+git checkout cominty
+bun install                     # génère aussi le client Prisma
+cp .env.example .env.local      # LLM_PROVIDER=mock par défaut
+bunx prisma migrate deploy      # crée prisma/dev.db
 npm run dev                     # http://localhost:3000
 ```
 
-### Configuration (`.env.local`)
-
-| Variable | Rôle |
-|---|---|
-| `LLM_PROVIDER` | `mock` (défaut, sans compte) ou `cominty` |
-| `COMINTY_API_KEY`, `COMINTY_USER_ID`, `COMINTY_AGENT_ID` | Identifiants de l'agent Cominty |
-| `DATABASE_URL` | Facultatif : `file:./prisma/dev.db` par défaut |
-| `CHROME_PATH` | Chemin d'Edge ou de Chrome pour l'export PDF |
-
-Les clés restent côté serveur et ne sont jamais envoyées au navigateur. `.env.local` est ignoré par Git.
-
-### Scripts
-
 | Commande | Action |
 |---|---|
-| `npm run dev` | Serveur de développement |
-| `npm run build` puis `npm run start` | Version de production |
-| `npm test` | Tests (`bun test`, sans appel réel à un modèle) |
-| `npm run lint` | ESLint |
-| `npm run demo:seed` | Base de démonstration fictive (Léa Dubois) dans un dossier temporaire |
-| `npm run cominty:smoke` | Un appel réel à l'agent Cominty (profil fictif, `max_steps` 3) : consomme des crédits |
+| `npm test` | Tests (`bun test`, base temporaire, aucun appel réel) |
+| `npm run demo:seed` | Base de démo fictive (Léa Dubois) dans un dossier temporaire |
+| `npm run cominty:smoke` | Un vrai appel à Cominty : consomme des crédits |
 
-## Déploiement sur Railway
+Variables (`.env.example`) : `LLM_PROVIDER` (`mock` ou `cominty`), `COMINTY_API_KEY`, `COMINTY_USER_ID`,
+`COMINTY_AGENT_ID`, `COMINTY_EXTRACT_AGENT_ID` (facultatif), `CHROME_PATH`.
 
-Le dépôt contient un `Dockerfile` (Node 22, Bun, Chromium pour le PDF) et un `railway.json` : Railway construit l'image
-et applique les migrations à chaque démarrage (`prisma migrate deploy`).
+<details>
+<summary>Déploiement sur Railway</summary>
 
-1. **Nouveau projet** → *Deploy from GitHub repo* → ce dépôt (branche `cominty`).
-2. **Volume** (Settings → Volumes) monté sur `/data` : la base SQLite y est conservée entre les déploiements
-   (`DATABASE_URL=file:/data/lmagent.db`, valeur par défaut de l'image).
-3. **Variables** (Settings → Variables), sans jamais les commiter :
+Le `Dockerfile` (Node 22, Bun, Chromium) et `railway.json` construisent l'image et appliquent les migrations au démarrage.
+Monter un volume sur `/data` (base SQLite), définir `LLM_PROVIDER=cominty`, les identifiants Cominty,
+`DEMO_ACCESS_CODE` et `COMINTY_BUDGET_USD`, puis générer un domaine.
 
-   | Variable | Valeur |
-   |---|---|
-   | `LLM_PROVIDER` | `cominty` (ou `mock` pour une démo sans crédit) |
-   | `COMINTY_API_KEY`, `COMINTY_USER_ID`, `COMINTY_AGENT_ID` | identifiants de l'agent (platform.cominty.ai) |
-   | `COMINTY_EXTRACT_AGENT_ID` | facultatif : agent rapide dédié à l'import du CV et au résumé |
-   | `DEMO_ACCESS_CODE` | code exigé pour tout vrai appel à Cominty (page `/acces`) |
-   | `COMINTY_BUDGET_USD` | plafond global de dépense (3 $ par défaut) |
-   | `DEMO_ENABLED` | `0` pour masquer le bouton de démo |
+</details>
 
-   `PORT`, `CHROME_PATH`, `CHROME_NO_SANDBOX`, `PDF_RENDER_ORIGIN` et `DATABASE_URL` ont des valeurs par défaut dans
-   l'image : inutile de les définir. Détail de toutes les variables : `.env.example`.
-4. **Domaine** (Settings → Networking → *Generate Domain*).
+## Version en ligne
 
-> **Protection des crédits.** En production, tout vrai appel à Cominty exige le code d'accès (`DEMO_ACCESS_CODE`,
-> saisi sur `/acces`, gardé dans un cookie httpOnly qui ne contient que son empreinte), et un plafond global
-> (`COMINTY_BUDGET_USD`, 3 $ par défaut) bloque tout nouvel appel une fois atteint. Sans code, le bouton
-> « Essayer avec un profil de démo » rejoue un vrai run enregistré, avec le même affichage en direct et sans aucun appel.
-> Il n'y a toujours pas de comptes utilisateurs : les profils importés sont visibles par toute personne qui a l'URL.
+**https://lmagent-production.up.railway.app**
 
-## Structure
+- **Sans code** : le bouton « Essayer avec un profil de démo » rejoue un vrai run de l'agent, enregistré, avec le
+  même affichage en direct et sans aucun appel.
+- **Avec le code d'accès** (fourni au jury dans le message de candidature) : saisi sur la page `/acces`, il permet
+  d'importer un CV et de faire écrire une vraie lettre par l'agent Cominty.
+- Une génération complète prend **plusieurs minutes**, à cause du raisonnement de l'agent (analyse, rédaction,
+  correction). Tu peux quitter la page et revenir : la lettre sera prête.
 
-```
-app/                 pages, Server Actions et route d'export PDF
-  profiles/          import du CV, vérification, fiche et édition du profil
-  letters/           création, page de la lettre, impression et PDF
-components/          logo, templates de lettre, composants d'interface
-lib/
-  agent/             étapes de l'agent, schémas et vérifications de la lettre
-  cv/                lecture des fichiers et import du CV
-  cominty/           client REST de l'agent Cominty, faux agent (mock)
-  llm/               provider cominty ou mock, boucle de génération validée, fixtures du mock
-  letters/           tour de l'agent suivi en direct, mises en page, retouches
-  pdf/               rendu avec Edge et nettoyage des métadonnées
-  offer/             lecture d'une offre depuis un lien
-prisma/              schéma et migrations (FTS5 et triggers en SQL)
-tests/               tests unitaires et d'intégration
-```
+Toutes les captures de ce README montrent un profil fictif (Léa Dubois), générées en mode `mock`.
 
-## Feuille de route
+## Améliorations prévues
 
-- Bouton « Raccourcir la lettre » quand elle dépasse une page même à 10 pt.
-- Documents du profil (rapports de stage, recommandations) et recherche hybride FTS5 + embeddings.
-- Authentification multi-utilisateur.
+- **Recherche web sur l'entreprise** : l'agent consulte la page de l'offre et le site de l'entreprise, et cite ces
+  pages comme sources de faits sur l'entreprise.
+- **Réduction du temps de génération** : niveau de raisonnement réglé, ou agent rédacteur dédié avec un modèle plus
+  rapide, côté configuration Cominty.
+- Bouton « Raccourcir la lettre » quand elle dépasse une page, même à 10 pt.
+- Documents du profil (rapports de stage, recommandations) comme sources, avec recherche hybride.
+- Comptes utilisateurs : aujourd'hui, il n'y a pas d'authentification.

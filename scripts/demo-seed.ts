@@ -60,4 +60,31 @@ await followAgentRun(await startAgentRun(letter.id, client), client, () => {});
 const final = await db.letter.findUniqueOrThrow({ where: { id: letter.id }, select: { status: true, error: true } });
 if (final.status !== "GENERATED") throw new Error(`Lettre de démo non générée : ${final.status} ${final.error ?? ""}`);
 
-console.log(JSON.stringify({ DATABASE_URL: url, importId: cvImport.id, profileId: saved.id, letterId: letter.id }, null, 2));
+// Questions au candidat : l'agent demande si Léa a déjà utilisé Docker (apprécié, absent du profil).
+const needsInput = {
+  reply: { status: "needs_input", analysis, gaps: [{ requirement: "Docker", importance: "preferred" }] },
+  question: { prompt: "As-tu déjà travaillé avec Docker ? Si oui, dans quel projet ?", options: ["Oui", "Non"] },
+};
+const asking = createMockComintyClient({ delayMs: 0, needsInput });
+const waiting = await db.letter.create({ data: { profileId: saved.id, offerText: DEMO_OFFER }, select: { id: true } });
+await followAgentRun(await startAgentRun(waiting.id, asking), asking, () => {});
+
+// Relecture des preuves : la 1re version attribue au stage un statut absent du CV (« mis en production ») ;
+// la correction ciblée revient à la formulation du CV. Léa a répondu « souhaite l'apprendre » pour Docker.
+const { answerAgentRun } = await import("@/lib/letters/agent-run");
+const original = (json("letter_draft.json") as { paragraphs: Array<{ sentences: Array<{ text: string; sourceIds: string[] }> }> }).paragraphs[1].sentences[0];
+const inflated = () => {
+  const reply = readyReply();
+  reply.letter.paragraphs[1].sentences[0].text =
+    "Lors de mon stage de data analyst chez Banque Atlantique, j'ai mis en production en Python un modèle de scoring de churn dont la précision dépasse de 12 % celle du modèle existant.";
+  return reply;
+};
+const reviewing = createMockComintyClient({ delayMs: 0, needsInput, readyReply: inflated, correctionReply: () => ({ status: "corrections", replacements: [{ ref: "P2.S1", ...original }] }) });
+const reviewed = await db.letter.create({ data: { profileId: saved.id, offerText: DEMO_OFFER }, select: { id: true } });
+await followAgentRun(await startAgentRun(reviewed.id, reviewing), reviewing, () => {});
+const question = (await db.agentRun.findFirstOrThrow({ where: { letterId: reviewed.id }, select: { questions: true } })).questions as Array<{ prompt: string; requirement?: string }>;
+await followAgentRun(await answerAgentRun(reviewed.id, [{ prompt: question[0].prompt, requirement: question[0].requirement, choice: "learn" }], reviewing), reviewing, () => {});
+const review = await db.letter.findUniqueOrThrow({ where: { id: reviewed.id }, select: { status: true, review: true } });
+if (review.status !== "GENERATED" || (review.review as { status?: string } | null)?.status !== "done") throw new Error(`Relecture de démo inattendue : ${review.status} ${JSON.stringify(review.review)}`);
+
+console.log(JSON.stringify({ DATABASE_URL: url, importId: cvImport.id, profileId: saved.id, letterId: letter.id, questionsLetterId: waiting.id, reviewLetterId: reviewed.id }, null, 2));
