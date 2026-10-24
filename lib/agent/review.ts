@@ -85,3 +85,18 @@ export function reviewLabel(review: LetterReview): string {
   ].filter(Boolean);
   return `Relecture : ${parts.join(", ")}`;
 }
+
+type Step = { key: string; label: string; status: string; at: string };
+
+/**
+ * Mise à jour d'une étape de la frise en direct. Pour un événement Cominty, on garde le premier libellé et la première
+ * heure (les phases running / success d'une même étape) ; l'étape « Relecture », elle, change de libellé une fois la
+ * correction faite (au test réel, « correction demandée à l'agent… » restait affiché).
+ */
+export function mergeTimelineStep<T extends Step>(steps: T[], step: T): T[] {
+  const index = steps.findIndex((s) => s.key === step.key);
+  if (index < 0) return [...steps, step];
+  const next = [...steps];
+  next[index] = step.key === REVIEW_STEP_KEY ? { ...step, at: steps[index].at } : { ...step, label: steps[index].label, at: steps[index].at };
+  return next;
+}

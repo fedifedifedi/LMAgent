@@ -1,5 +1,5 @@
 import { evidenceContext } from "@/lib/agent/evidence-checks";
-import { AnswersSchema, notAcquired, standardizeQuestions, toLearn, type CandidateAnswer } from "@/lib/agent/questions";
+import { AnswersSchema, notAcquired, requirementsFrom, standardizeQuestions, toLearn, withRequirements, type CandidateAnswer } from "@/lib/agent/questions";
 import { OfferAnalysisSchema, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { extractJsonText } from "@/lib/cominty/json";
 import { completeReview, REVIEW_STEP_KEY, reviewLabel, startReview, type LetterReview } from "@/lib/agent/review";
@@ -67,6 +67,15 @@ async function threadAnswers(threadId: string): Promise<CandidateAnswer[]> {
   return runs.flatMap((r) => (r.answers as CandidateAnswer[] | null) ?? []);
 }
 
+/** Exigences pour rattacher les questions (analyse, sinon « gaps » de la réponse). */
+function requirementsOf(content: string) {
+  try {
+    return requirementsFrom(JSON.parse(extractJsonText(content)));
+  } catch {
+    return [];
+  }
+}
+
 /** Analyse jointe à une réponse « needs_input » (facultative, ignorée si elle ne respecte pas le schéma). */
 function analysisFrom(content: string): OfferAnalysis | undefined {
   try {
@@ -128,6 +137,9 @@ export async function answerAgentRun(letterId: string, answers: CandidateAnswer[
   if (!last || last.status !== "SUCCESS" || !last.questions) throw new AgentRunError("L'agent n'attend pas de réponse pour cette lettre.");
   const parsedAnswers = AnswersSchema.safeParse(answers);
   if (!parsedAnswers.success) throw new AgentRunError(parsedAnswers.error.issues[0]?.message ?? "Réponse invalide.");
+  // Exigence manquante (question non standardisée) : retrouvée dans l'analyse, pour « Non » et « apprendre ».
+  const analysis = (await db.letter.findUnique({ where: { id: letterId }, select: { analysis: true } }))?.analysis as OfferAnalysis | null;
+  parsedAnswers.data = withRequirements(parsedAnswers.data, analysis?.requirements ?? []);
 
   const client = await resolveClient(clientFor, last.messageId);
   const started = await client.sendMessage(last.threadId, agentAnswersMessage(parsedAnswers.data));
@@ -172,7 +184,19 @@ async function recordCost(run: AgentRun, event: Extract<ComintyEvent, { name: "r
 }
 
 /** Message final d'un tour : questions, lettre prête, correction unique, ou échec. Une seule fois par exécution. */
-async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentClient): Promise<Outcome> {
+/**
+ * Texte de la réponse : le message final, ou, s'il est vide, la dernière mise à jour intermédiaire (au test réel,
+ * l'agent a envoyé son JSON dans un événement intermediary_update et un message final vide).
+ */
+export function replyText(message: Pick<ComintyMessage, "content" | "events">, lastUpdate?: string): string {
+  if (message.content.trim()) return message.content;
+  if (lastUpdate?.trim()) return lastUpdate;
+  const updates = (message.events ?? []).filter((e) => e.name === "intermediary_update").map((e) => (e.data as { message?: unknown } | undefined)?.message);
+  return String(updates.filter((m) => typeof m === "string" && m.trim()).at(-1) ?? "");
+}
+
+async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentClient, lastUpdate?: string): Promise<Outcome> {
+  const content = replyText(message, lastUpdate);
   const claim = (data: Prisma.AgentRunUpdateManyMutationInput) =>
     db.agentRun.updateMany({ where: { id: run.id, status: "RUNNING" }, data: { finishedAt: new Date(), ...data } }).then((r) => r.count === 1);
   const fail = async (status: "FAILED" | "CANCELLED", error: string, runError?: string): Promise<Outcome> => {
@@ -190,8 +214,8 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   if (message.questions?.length) {
     // Questions natives de l'agent, standardisées par le code (3 au plus, obligatoires d'abord, 4 boutons).
     // L'analyse jointe est enregistrée tout de suite : la carte « Offre analysée » s'affiche pendant l'attente.
-    const analysis = analysisFrom(message.content);
-    const questions = standardizeQuestions(message.questions, analysis?.requirements);
+    const analysis = analysisFrom(content);
+    const questions = standardizeQuestions(message.questions, requirementsOf(content));
     if (!(await claim({ status: "SUCCESS", questions: json(questions) }))) return { type: "run", runId: run.id };
     await db.letter.update({
       where: { id: run.letterId },
@@ -203,7 +227,7 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   const letter = await db.letter.findUniqueOrThrow({ where: { id: run.letterId }, include: { profile: true } });
   const answers = await threadAnswers(run.threadId);
   const ids = agentSourceIds(ProfileSchema.parse(letter.profile.data), answers);
-  const parsed = parseAgentReply(message.content, ids);
+  const parsed = parseAgentReply(content, ids);
   const issues = !parsed.ok ? parsed.issues : parsed.reply.status === "needs_input" ? 'status "needs_input" requires native Cominty questions; ask them, or answer with status "ready".' : undefined;
 
   if (parsed.ok && parsed.reply.status === "ready") {
@@ -238,7 +262,7 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
     });
     if (!correct) return { type: "done" };
     try {
-      const started = await client.sendMessage(run.threadId, agentEvidenceCorrectionMessage(evidenceIssues.map((issue) => issue.message)));
+      const started = await client.sendMessage(run.threadId, agentEvidenceCorrectionMessage(evidenceIssues, fields.letter));
       const next = await db.agentRun.create({ data: { letterId: run.letterId, threadId: started.threadId, messageId: started.messageId, kind: "CORRECTION" } });
       return { type: "next", runId: next.id };
     } catch (error) {
@@ -251,7 +275,7 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
 
   // JSON invalide : une seule correction par conversation (une reprise après échec repart d'une nouvelle conversation).
   // Le début de la réponse est gardé avec les erreurs (AgentRun.error), pour comprendre un format inattendu.
-  const diagnosis = `${issues ?? "Invalid answer"}\n\nRéponse reçue (début) :\n${message.content.slice(0, 3000)}`;
+  const diagnosis = `${issues ?? "Invalid answer"}\n\nRéponse reçue (début) :\n${content.slice(0, 3000)}`;
   const corrections = await db.agentRun.count({ where: { threadId: run.threadId, kind: "CORRECTION" } });
   if (corrections > 0) {
     const existing = await db.letter.findUnique({ where: { id: run.letterId }, select: { content: true } });
@@ -320,10 +344,11 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
     } else {
       outcome = { type: "interrupted" };
       const known = new Set(run.events.map((e) => e.eventId));
+      let lastUpdate: string | undefined;
       try {
         for await (const item of client.stream(run.messageId, { lastEventId: run.lastEventId ?? undefined, signal })) {
           if (item.type === "message") {
-            outcome = await finishRun(run, item.message, client);
+            outcome = await finishRun(run, item.message, client, lastUpdate);
             await emitReview(run.letterId, emit);
             break;
           }
@@ -336,6 +361,7 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
           });
           await db.agentRun.update({ where: { id: run.id }, data: { lastEventId: event.id } });
           if (event.name === "result") await recordCost(run, event, client);
+          if (event.name === "intermediary_update") lastUpdate = event.data.message;
           emit({ type: "step", step: stepOf(saved) });
         }
       } catch (error) {

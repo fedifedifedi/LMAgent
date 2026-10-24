@@ -34,8 +34,12 @@ export function eventLabel(event: ComintyEvent): string {
     }
     case "tool_call":
       return toolLabel(event.data.name, event.data.description);
-    case "intermediary_update":
-      return event.data.message.length <= 80 ? event.data.message : `${event.data.message.slice(0, 77)}…`;
+    case "intermediary_update": {
+      // Au test réel, l'agent a envoyé sa réponse JSON entière dans une mise à jour intermédiaire : jamais affichée brute.
+      const message = event.data.message.trim();
+      if (/^[\[{]/.test(message) || message.includes('"status"')) return "Préparation de la réponse";
+      return message.length <= 80 ? message : `${message.slice(0, 77)}…`;
+    }
     case "result":
       return "Réponse de l'agent";
     case "other":

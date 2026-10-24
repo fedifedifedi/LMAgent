@@ -14,7 +14,9 @@ export type LetterIssue = {
     // Relecture des preuves (lib/agent/evidence-checks.ts)
     | "offer_term_unsourced"
     | "status_transferred"
-    | "verb_inflated";
+    | "verb_inflated"
+    // Deux phrases voisines qui répètent les mêmes outils (après une correction, au test réel)
+    | "repeated_terms";
   message: string;
   /** Phrase de la lettre concernée (relecture visible : avant / après). */
   sentence?: string;
@@ -83,6 +85,26 @@ export function checkLetter(
       issues.push({ kind: "addressing", message: `L'offre nomme ${contact} : la lettre devrait s'adresser à cette personne.` });
     }
   }
+  issues.push(...repeatedTerms(letter));
   if (context.evidence) issues.push(...checkEvidence(letter, { ...context.evidence, analysis: context.analysis }));
+  return issues;
+}
+
+/** Noms propres et outils d'une phrase (mots à majuscule hors premier mot : StackStorm, Vault, Grafana). */
+const properNames = (text: string) => new Set(text.split(/[^\p{L}\p{N}+#.]+/u).slice(1).filter((w) => /^\p{Lu}/u.test(w) && w.length >= 3));
+
+/** Deux phrases consécutives d'un paragraphe qui citent au moins 3 mêmes noms : répétition à reformuler. */
+export function repeatedTerms(letter: LetterContent): LetterIssue[] {
+  const issues: LetterIssue[] = [];
+  for (const paragraph of letter.paragraphs) {
+    paragraph.sentences.forEach((sentence, index) => {
+      const next = paragraph.sentences[index + 1];
+      if (!next) return;
+      const shared = [...properNames(sentence.text)].filter((name) => properNames(next.text).has(name));
+      if (shared.length >= 3) {
+        issues.push({ kind: "repeated_terms", sentence: next.text, message: `Deux phrases voisines répètent ${shared.join(", ")} : regroupe-les ou retire la répétition.` });
+      }
+    });
+  }
   return issues;
 }

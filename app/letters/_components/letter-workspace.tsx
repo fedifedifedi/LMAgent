@@ -15,6 +15,7 @@ import {
   startAgentRunAction,
 } from "@/app/letters/actions";
 import { AgentQuestions } from "@/app/letters/_components/agent-questions";
+import { mergeTimelineStep } from "@/lib/agent/review";
 import { AgentTimeline, type AgentPhase } from "@/app/letters/_components/agent-timeline";
 import { DeleteLetter } from "@/app/letters/_components/delete-letter";
 import { LetterEditor } from "@/app/letters/_components/letter-editor";
@@ -93,13 +94,7 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
   const running = phase === "running";
 
   function upsertStep(step: TimelineStep) {
-    setSteps((current) => {
-      const index = current.findIndex((s) => s.key === step.key);
-      if (index < 0) return [...current, step];
-      const next = [...current];
-      next[index] = { ...step, label: current[index].label, at: current[index].at };
-      return next;
-    });
+    setSteps((current) => mergeTimelineStep(current, step));
   }
 
   async function refresh(reveal = false) {

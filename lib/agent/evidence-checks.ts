@@ -46,7 +46,12 @@ const isContent = (word: string) => word.length >= 4 && !STOPWORDS.has(word);
 const contains = (haystack: string, needle: string) => ` ${haystack} `.includes(` ${needle} `);
 
 /** Statuts qui ne se transfèrent pas : la racine, et un libellé lisible. */
-const STATUS_STEMS = ["livr", "deploy", "production", "operationnel", "adopt", "industrialis", "lance", "publie"];
+// « opérationnel » n'est pas un statut : c'est un adjectif, souvent appliqué à autre chose que le travail (au test réel,
+// « questions opérationnelles » était signalé). Il reste contrôlé comme mot renforcé (STRONG_FAMILIES).
+const STATUS_STEMS = ["livr", "deploy", "production", "adopt", "industrialis", "lance", "publie"];
+
+/** Noms que « opérationnel » qualifie sans rien affirmer sur le travail du candidat (« questions opérationnelles »). */
+const DESCRIPTIVE_NOUNS = new Set(["questions", "question", "besoins", "besoin", "equipes", "equipe", "enjeux", "problematiques", "taches", "contraintes", "donnees", "metiers", "sujets", "cas", "usages", "aspects", "niveau", "dimension", "excellence", "efficacite", "decisions", "indicateurs"]);
 
 /** Familles de verbes plus forts que « intégrer », « contribuer », « utiliser » : ils doivent être écrits dans la source. */
 const STRONG_FAMILIES: Array<{ label: string; stems: string[] }> = [
@@ -153,7 +158,7 @@ export function checkEvidence(letter: LetterContent, context: EvidenceContext): 
 
       // 3. Verbe plus fort que le CV : la famille du verbe doit être présente dans la source citée.
       for (const family of STRONG_FAMILIES) {
-        const at = words.findIndex((w) => family.stems.includes(w));
+        const at = words.findIndex((w, i) => family.stems.includes(w) && !(family.label === "opérationnel" && DESCRIPTIVE_NOUNS.has(words[i - 1] ?? "")));
         if (at >= 0 && !family.stems.some((stem) => cited.split(" ").includes(stem))) {
           const used = shown(at, at);
           push({ kind: "verb_inflated", sentence: sentence.text, message: `« ${used} » est plus fort que ce que dit le CV pour ${citedLabel(sentence.sourceIds)} (famille « ${family.label} » absente) : reprends le verbe du CV.` });

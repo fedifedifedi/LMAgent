@@ -3,6 +3,7 @@ import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { extractJsonText } from "@/lib/cominty/json";
 import { normalizeLetterText } from "@/lib/letters/text";
 import { answerSources, type CandidateAnswer } from "@/lib/agent/questions";
+import { letterWordCount } from "@/lib/agent/letter-checks";
 import { letterSchema, OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { buildSourceCatalog, sourceIds } from "@/lib/agent/sources";
 import type { Profile } from "@/lib/schemas/profile";
@@ -210,11 +211,22 @@ export function agentAnswersMessage(answers: CandidateAnswer[]): string {
 }
 
 /** Relecture critique : problèmes de preuve détectés par le code, renvoyés à l'agent (correction unique). */
-export function agentEvidenceCorrectionMessage(problems: string[]): string {
+export function agentEvidenceCorrectionMessage(problems: Array<{ message: string; sentence?: string }>, letter?: LetterContent): string {
+  // Chaque phrase est montrée dans son paragraphe : au test réel, une phrase corrigée répétait la phrase voisine.
+  const context = letter
+    ? [...new Set(problems.map((p) => p.sentence).filter(Boolean))].map((sentence) => {
+        const paragraph = letter.paragraphs.find((p) => p.sentences.some((s) => s.text === sentence));
+        return `Phrase : « ${sentence} »\n  Son paragraphe : « ${paragraph?.sentences.map((s) => s.text).join(" ") ?? sentence} »`;
+      })
+    : [];
+  const words = letter ? letterWordCount(letter) : undefined;
   return [
     "LMAgent — relecture : ta lettre contient des affirmations qui ne sont pas écrites dans le CV pour l'expérience citée.",
-    `Problèmes :\n${problems.map((p) => `- ${p}`).join("\n")}`,
+    `Problèmes :\n${problems.map((p) => `- ${p.message}`).join("\n")}`,
+    ...(context.length ? [`Phrases concernées, avec leur paragraphe :\n${context.join("\n")}`] : []),
     "Corrige ces phrases : reprends les mots et les verbes du CV pour l'expérience citée, ou retire l'affirmation. Ne change rien d'autre.",
+    "La phrase corrigée ne répète pas ce que disent déjà les phrases voisines du paragraphe (outils, résultats).",
+    `${words !== undefined ? `La lettre fait ${words} mots. ` : ""}Elle doit rester entre 250 et 300 mots : si tu retires une affirmation, compense par un autre fait du profil, avec sa source.`,
     EVIDENCE_RULES,
     AGENT_OUTPUT_CONTRACT,
     "Renvoie l'objet JSON complet corrigé, et lui seul.",

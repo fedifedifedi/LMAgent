@@ -40,6 +40,8 @@ export const MessageSchema = z.object({
   questions: z.array(QuestionSchema).nullish(),
   structured_output: z.record(z.string(), z.unknown()).nullish(),
   files: z.array(FileSchema).default([]),
+  /** Journal brut des événements (le texte d'une mise à jour intermédiaire peut contenir la réponse). */
+  events: z.array(z.record(z.string(), z.unknown())).nullish(),
 });
 export type ComintyMessage = z.infer<typeof MessageSchema>;
 
