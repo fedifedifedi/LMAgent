@@ -3,15 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { evidenceContext } from "@/lib/agent/evidence-checks";
+import { AnswersSchema } from "@/lib/agent/questions";
 import { checkLetter } from "@/lib/agent/letter-checks";
+import { ProfileSchema } from "@/lib/schemas/profile";
 import { OfferAnalysisSchema, type ProfileMatch } from "@/lib/agent/schemas";
+import { clientForMessage, clientForStart, isComintyMode, requestHasAccess } from "@/lib/cominty/agent-client";
+import { ComintyError } from "@/lib/cominty/errors";
+import { ACCESS_REQUIRED_MESSAGE, ComintyGuardError } from "@/lib/cominty/guard";
+import { REPLAY_PREFIX } from "@/lib/cominty/replay-client";
+import { DEMO_PROFILE_NAME } from "@/lib/demo";
 import { db } from "@/lib/db";
+import { AgentRunError, answerAgentRun, cancelAgentRun, startAgentRun } from "@/lib/letters/agent-run";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { applyEdits, LetterEditsSchema, StoredLetterSchema } from "@/lib/letters/stored";
 import { isLetterTemplate } from "@/lib/letters/templates";
-import { runNextStep } from "@/lib/letters/pipeline";
 import { getLetterView, type LetterView } from "@/lib/letters/view";
-import { DAILY_QUOTA_LETTER_MESSAGE, LLMError, LLMRateLimitError, LLMValidationError } from "@/lib/llm";
 import { fetchOffer, OfferFetchError } from "@/lib/offer/fetch-offer";
 import { MAX_OFFER_CHARS, MIN_PASTED_OFFER_CHARS, normalizeText } from "@/lib/offer/text";
 
@@ -95,7 +102,7 @@ export async function saveLetterEditsAction(letterId: unknown, edits: unknown): 
   if (!id.success) return { error: "Lettre introuvable." };
   if (!parsedEdits.success) return { error: parsedEdits.error.issues[0]?.message ?? "Texte invalide." };
 
-  const letter = await db.letter.findUnique({ where: { id: id.data } });
+  const letter = await db.letter.findUnique({ where: { id: id.data }, include: { profile: true } });
   if (!letter?.content || !letter.analysis || !letter.match) return { error: "La lettre n'est pas encore générée." };
   const current = StoredLetterSchema.parse(letter.content);
   let next;
@@ -104,7 +111,7 @@ export async function saveLetterEditsAction(letterId: unknown, edits: unknown): 
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Texte invalide." };
   }
-  const checks = checkLetter(next, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch });
+  const checks = checkLetter(next, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch, evidence: evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText) });
   await db.letter.update({
     where: { id: id.data },
     data: {
@@ -121,10 +128,10 @@ export async function saveLetterEditsAction(letterId: unknown, edits: unknown): 
 export async function revertLetterAction(letterId: unknown): Promise<ViewResult> {
   const id = z.string().min(1).safeParse(letterId);
   if (!id.success) return { error: "Lettre introuvable." };
-  const letter = await db.letter.findUnique({ where: { id: id.data } });
+  const letter = await db.letter.findUnique({ where: { id: id.data }, include: { profile: true } });
   if (!letter?.generated || !letter.analysis || !letter.match) return { error: "Aucune version générée à restaurer." };
   const generated = StoredLetterSchema.parse(letter.generated);
-  const checks = checkLetter(generated, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch });
+  const checks = checkLetter(generated, { analysis: OfferAnalysisSchema.parse(letter.analysis), match: letter.match as ProfileMatch, evidence: evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText) });
   await db.letter.update({
     where: { id: id.data },
     data: { content: generated as Prisma.InputJsonObject, generated: Prisma.DbNull, checks: checks as unknown as Prisma.InputJsonValue },
@@ -133,32 +140,68 @@ export async function revertLetterAction(letterId: unknown): Promise<ViewResult>
   return view ? { view } : { error: "Lettre introuvable." };
 }
 
-export type StepActionResult = { view: LetterView; error?: string; retryAfterSeconds?: number };
+/** Message lisible pour une erreur de l'agent (clé refusée, limite, réseau), sans jamais la clé. */
+function agentErrorMessage(error: unknown): string {
+  if (error instanceof AgentRunError || error instanceof ComintyError) return error.message;
+  console.error("Agent Cominty :", error);
+  return "Erreur inattendue en contactant l'agent. Réessaie.";
+}
 
-/** Exécute l'étape suivante du pipeline (appelée par la page, une étape à la fois) et renvoie l'état à jour. */
-export async function runLetterStepAction(letterId: unknown): Promise<StepActionResult | { error: string }> {
+type RunResult = { runId: string } | { error: string };
+
+/** Démarre l'agent Cominty sur la lettre (un seul tour : analyse, score, lettre, ajustements du CV). */
+export async function startAgentRunAction(letterId: unknown): Promise<RunResult> {
   const id = z.string().min(1).safeParse(letterId);
   if (!id.success) return { error: "Lettre introuvable." };
-
-  let error: string | undefined;
-  let retryAfterSeconds: number | undefined;
   try {
-    await runNextStep(id.data);
-  } catch (e) {
-    if (e instanceof LLMRateLimitError) {
-      error = e.daily ? DAILY_QUOTA_LETTER_MESSAGE : e.message;
-      retryAfterSeconds = e.retryAfterSeconds;
-    } else if (e instanceof LLMValidationError) {
-      error = "Le modèle n'a pas produit de réponse exploitable pour cette étape. Réessaie.";
-    } else if (e instanceof LLMError) {
-      error = e.message;
-    } else {
-      console.error("Génération de la lettre :", e);
-      error = "Erreur inattendue pendant la génération. Réessaie.";
-    }
+    // Lettre de démo sans code d'accès : rejeu d'un vrai run enregistré (aucun appel). Sinon, vrai appel avec le code.
+    const letter = await db.letter.findUnique({ where: { id: id.data }, select: { profile: { select: { name: true } } } });
+    const client = clientForStart({ access: await requestHasAccess(), demo: letter?.profile.name === DEMO_PROFILE_NAME });
+    return { runId: await startAgentRun(id.data, client) };
+  } catch (error) {
+    const message = agentErrorMessage(error);
+    await db.letter.updateMany({ where: { id: id.data, content: { equals: Prisma.DbNull } }, data: { status: "FAILED", error: message } });
+    return { error: message };
   }
+}
 
+
+/** Réponses du candidat aux questions de l'agent (boutons ou texte libre). */
+export async function answerAgentAction(letterId: unknown, answers: unknown): Promise<RunResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  // Même validation que le serveur de l'agent : « Oui » exige une précision, 3 réponses au plus.
+  const parsed = AnswersSchema.safeParse(answers);
+  if (!id.success) return { error: "Lettre introuvable." };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Réponse invalide." };
+  try {
+    const access = await requestHasAccess();
+    const runId = await answerAgentRun(id.data, parsed.data, (messageId) => {
+      const client = clientForMessage(messageId);
+      // Répondre à un vrai agent relance un appel payant : code d'accès exigé, comme pour démarrer.
+      if (isComintyMode() && !messageId.startsWith("mock-") && !messageId.startsWith(REPLAY_PREFIX) && !access) {
+        throw new ComintyGuardError("access", ACCESS_REQUIRED_MESSAGE);
+      }
+      return client;
+    });
+    return { runId };
+  } catch (error) {
+    return { error: agentErrorMessage(error) };
+  }
+}
+
+/** Arrête l'agent en cours ; la lettre peut être relancée avec « Reprendre ». */
+export async function cancelAgentRunAction(letterId: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
+  await cancelAgentRun(id.data, (messageId) => clientForMessage(messageId));
   const view = await getLetterView(id.data);
-  if (!view) return { error: "Lettre introuvable." };
-  return { view, error, retryAfterSeconds };
+  return view ? { view } : { error: "Lettre introuvable." };
+}
+
+/** État à jour de la lettre (après la fin du flux de l'agent). */
+export async function getLetterViewAction(letterId: unknown): Promise<ViewResult> {
+  const id = z.string().min(1).safeParse(letterId);
+  if (!id.success) return { error: "Lettre introuvable." };
+  const view = await getLetterView(id.data);
+  return view ? { view } : { error: "Lettre introuvable." };
 }

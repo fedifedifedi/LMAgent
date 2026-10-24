@@ -7,7 +7,7 @@ export class LLMError extends Error {
   }
 }
 
-/** Configuration manquante ou invalide (LLM_PROVIDER, LLM_MODEL, clé API, fixture absente). */
+/** Configuration manquante ou invalide (LLM_PROVIDER, COMINTY_*, fixture absente). */
 export class LLMConfigError extends LLMError {}
 
 /** Limite de requêtes atteinte (HTTP 429), avec le délai conseillé quand l'API le fournit. */
@@ -24,10 +24,6 @@ export class LLMRateLimitError extends LLMError {
   /** Quota du jour épuisé (pas une simple limite par minute) : rien à faire avant le lendemain. */
   readonly daily: boolean;
 }
-
-/** Texte affiché sur une lettre quand le quota gratuit du jour est épuisé (la lettre est reprenable). */
-export const DAILY_QUOTA_LETTER_MESSAGE =
-  "Quota gratuit Gemini du jour épuisé. Il se recharge demain matin. Ta lettre est sauvegardée : clique sur Reprendre à ce moment-là.";
 
 /** Réponse inexploitable indépendamment du schéma : refus, sortie tronquée, réponse vide. */
 export class LLMResponseError extends LLMError {}

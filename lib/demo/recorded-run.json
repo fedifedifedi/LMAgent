@@ -1,0 +1,321 @@
+{
+  "description": "Vrai run de l'agent Cominty (23/10/2026, profil fictif Léa Dubois, offre Hélio Prévisions, règles de preuve), rejoué par la démo sans appel.",
+  "recordedAt": "2026-10-23T19:57:53.889Z",
+  "durationMs": 288149,
+  "cost": {
+    "input_tokens": 12033,
+    "output_tokens": 18527,
+    "cached_tokens": 0,
+    "total": 0.3230265
+  },
+  "events": [
+    {
+      "correlationId": -1,
+      "name": "waiting_for_start",
+      "status": "running",
+      "offsetMs": 0
+    },
+    {
+      "correlationId": -1,
+      "name": "waiting_for_start",
+      "status": "success",
+      "offsetMs": 661
+    },
+    {
+      "correlationId": 0,
+      "name": "setting_up_sandbox",
+      "status": "running",
+      "offsetMs": 659
+    },
+    {
+      "correlationId": 0,
+      "name": "setting_up_sandbox",
+      "status": "success",
+      "offsetMs": 2300
+    },
+    {
+      "correlationId": 1,
+      "name": "llm",
+      "status": "running",
+      "offsetMs": 784
+    },
+    {
+      "correlationId": 1,
+      "name": "llm",
+      "status": "success",
+      "offsetMs": 287878
+    },
+    {
+      "correlationId": 2,
+      "name": "result",
+      "status": "success",
+      "offsetMs": 287989
+    }
+  ],
+  "reply": {
+    "status": "ready",
+    "analysis": {
+      "language": "fr",
+      "jobTitle": "Stage de fin d'études — Data scientist",
+      "company": "Hélio Prévisions",
+      "location": "Bordeaux (hybride)",
+      "contractType": "Stage de fin d'études",
+      "duration": "6 mois",
+      "startDate": "février 2027",
+      "contact": {
+        "name": "Julien Roche",
+        "civility": "M.",
+        "role": "responsable data"
+      },
+      "missions": [
+        "Construire et évaluer des modèles de prévision de consommation en Python",
+        "Fiabiliser les chaînes de données en SQL",
+        "Restituer les prévisions aux clients dans des tableaux de bord"
+      ],
+      "requirements": [
+        {
+          "name": "Python",
+          "kind": "hard",
+          "importance": "required"
+        },
+        {
+          "name": "SQL",
+          "kind": "hard",
+          "importance": "required"
+        },
+        {
+          "name": "Séries temporelles",
+          "kind": "hard",
+          "importance": "required"
+        },
+        {
+          "name": "Master Data Science (en cours, dernière année)",
+          "kind": "education",
+          "importance": "required"
+        },
+        {
+          "name": "Anglais professionnel",
+          "kind": "language",
+          "importance": "required"
+        },
+        {
+          "name": "Power BI",
+          "kind": "hard",
+          "importance": "preferred"
+        },
+        {
+          "name": "Docker",
+          "kind": "hard",
+          "importance": "preferred"
+        }
+      ],
+      "companyFacts": [
+        "Hélio Prévisions aide les collectivités à prévoir et piloter leur consommation d'énergie.",
+        "L'équipe compte une vingtaine de personnes à Bordeaux."
+      ],
+      "keywords": [
+        "Python",
+        "SQL",
+        "séries temporelles",
+        "Power BI",
+        "Docker",
+        "modèles de prévision",
+        "tableaux de bord",
+        "collectivités",
+        "consommation d'énergie",
+        "data scientist"
+      ]
+    },
+    "score": 87,
+    "scoreReasons": [
+      "Python, SQL et séries temporelles — les trois compétences indispensables — sont documentées dans les réalisations du stage à la Banque Atlantique et du projet tramway.",
+      "Power BI, critère apprécié, est utilisé à la Banque Atlantique dans un contexte de restitution à 40 conseillers.",
+      "La disponibilité déclarée (6 mois, février 2027, Bordeaux, hybride accepté) correspond exactement aux conditions de l'offre.",
+      "L'anglais C1 répond à l'exigence d'anglais professionnel.",
+      "Docker, critère secondaire (« un plus »), est absent du profil et constitue le seul écart identifié."
+    ],
+    "strengths": [
+      {
+        "requirement": "Python",
+        "status": "matched",
+        "evidence": "Modèle de scoring de churn en Python avec scikit-learn (Banque Atlantique) ; Python utilisé dans le projet tramway (LightGBM).",
+        "sourceIds": [
+          "exp-banque-atlantique-2025",
+          "proj-prevision-tramway"
+        ]
+      },
+      {
+        "requirement": "SQL",
+        "status": "matched",
+        "evidence": "Automatisation en SQL de l'extraction mensuelle des données clients (Banque Atlantique).",
+        "sourceIds": [
+          "exp-banque-atlantique-2025"
+        ]
+      },
+      {
+        "requirement": "Séries temporelles",
+        "status": "matched",
+        "evidence": "Modèle de gradient boosting (LightGBM) sur séries temporelles dans le projet tramway, erreur moyenne de 8 %.",
+        "sourceIds": [
+          "proj-prevision-tramway"
+        ]
+      },
+      {
+        "requirement": "Master Data Science (en cours, dernière année)",
+        "status": "matched",
+        "evidence": "Master Data Science, Université de Bordeaux, en cours. La disponibilité est déclarée pour un stage de type PFE (projet de fin d'études), ce qui correspond à la dernière année de master.",
+        "sourceIds": [
+          "edu-master-data-science-bordeaux",
+          "profile-availability"
+        ]
+      },
+      {
+        "requirement": "Anglais professionnel",
+        "status": "matched",
+        "evidence": "Anglais, niveau C1.",
+        "sourceIds": [
+          "profile-languages"
+        ]
+      },
+      {
+        "requirement": "Power BI",
+        "status": "matched",
+        "evidence": "Tableaux de bord Power BI utilisés par 40 conseillers (Banque Atlantique).",
+        "sourceIds": [
+          "exp-banque-atlantique-2025"
+        ]
+      }
+    ],
+    "gaps": [
+      {
+        "requirement": "Docker",
+        "importance": "preferred",
+        "note": "Absent du profil."
+      }
+    ],
+    "letter": {
+      "language": "fr",
+      "subject": "Candidature au stage de fin d'études — Data scientist — Hélio Prévisions",
+      "salutation": "Monsieur Roche,",
+      "paragraphs": [
+        {
+          "sentences": [
+            {
+              "text": "Je vous adresse ma candidature pour le stage de fin d'études Data scientist proposé par Hélio Prévisions.",
+              "sourceIds": []
+            },
+            {
+              "text": "Étudiante en master Data Science à l'Université de Bordeaux, je serai disponible à partir de février 2027 pour six mois, à Bordeaux.",
+              "sourceIds": [
+                "edu-master-data-science-bordeaux",
+                "profile-availability"
+              ]
+            }
+          ]
+        },
+        {
+          "sentences": [
+            {
+              "text": "La construction de modèles prédictifs en Python est au cœur de mes expériences à la Banque Atlantique et dans mon projet de master.",
+              "sourceIds": [
+                "exp-banque-atlantique-2025",
+                "proj-prevision-tramway"
+              ]
+            },
+            {
+              "text": "À la Banque Atlantique, j'ai développé un modèle de scoring de churn en Python avec scikit-learn, améliorant la précision de 12 % par rapport au modèle existant.",
+              "sourceIds": [
+                "exp-banque-atlantique-2025"
+              ]
+            },
+            {
+              "text": "Dans mon projet de master, j'ai prévu la fréquentation horaire de stations de tramway à partir de données ouvertes, à l'aide d'un modèle de gradient boosting sur séries temporelles avec LightGBM, avec une erreur moyenne de 8 %.",
+              "sourceIds": [
+                "proj-prevision-tramway"
+              ]
+            }
+          ]
+        },
+        {
+          "sentences": [
+            {
+              "text": "À la Banque Atlantique, j'ai également automatisé en SQL l'extraction mensuelle des données clients et construit des tableaux de bord Power BI utilisés par 40 conseillers.",
+              "sourceIds": [
+                "exp-banque-atlantique-2025"
+              ]
+            },
+            {
+              "text": "Ces deux volets — fiabilisation des données et restitution visuelle — correspondent directement aux missions décrites dans votre offre.",
+              "sourceIds": []
+            }
+          ]
+        },
+        {
+          "sentences": [
+            {
+              "text": "L'enjeu de prévision de consommation d'énergie pour des collectivités est un cadre d'application dans lequel mes compétences en séries temporelles et en Python trouveraient directement leur place.",
+              "sourceIds": [
+                "proj-prevision-tramway",
+                "exp-banque-atlantique-2025"
+              ]
+            },
+            {
+              "text": "La localisation à Bordeaux et le mode hybride correspondent à mes modalités de stage.",
+              "sourceIds": [
+                "profile-availability"
+              ]
+            },
+            {
+              "text": "La taille de votre équipe et la relation directe avec des clients collectivités constituent un contexte d'apprentissage que je ne trouverais pas dans une grande structure.",
+              "sourceIds": []
+            }
+          ]
+        },
+        {
+          "sentences": [
+            {
+              "text": "Je reste à votre disposition pour un entretien et vous remercie de l'attention portée à ma candidature.",
+              "sourceIds": []
+            }
+          ]
+        }
+      ],
+      "closing": "Veuillez recevoir, Monsieur Roche, l'expression de mes salutations respectueuses."
+    },
+    "cvAdjustments": [
+      {
+        "section": "Titre / Headline",
+        "change": "Compléter « Data scientist junior » par « — prévision et séries temporelles », par exemple : « Data scientist junior — prévision et séries temporelles ».",
+        "reason": "Les séries temporelles sont listées comme compétence indispensable dans l'offre ; les faire apparaître dès le titre améliore la lisibilité immédiate pour le recruteur.",
+        "sourceIds": [
+          "proj-prevision-tramway"
+        ]
+      },
+      {
+        "section": "Compétences / Machine learning",
+        "change": "Déplacer « Séries temporelles » en première position dans la catégorie Machine learning.",
+        "reason": "C'est la compétence technique différenciante la plus demandée dans l'offre ; la mettre en avant augmente sa visibilité avant même la lecture des expériences.",
+        "sourceIds": [
+          "proj-prevision-tramway"
+        ]
+      },
+      {
+        "section": "Projets",
+        "change": "Placer le projet « Prévision de fréquentation du tramway » en tête de la section Projets.",
+        "reason": "Ce projet illustre directement la mission principale de l'offre (modèle de prévision sur séries temporelles en Python) ; il doit être lu en premier.",
+        "sourceIds": [
+          "proj-prevision-tramway"
+        ]
+      },
+      {
+        "section": "Résumé / Accroche",
+        "change": "Remplacer la formulation générale par une phrase mentionnant explicitement la prévision sur séries temporelles et la restitution à des équipes métier, par exemple : « Je construis des modèles de prévision sur séries temporelles en Python et des tableaux de bord utilisés par des équipes métier. »",
+        "reason": "L'accroche actuelle est générique ; les termes exacts de l'offre (prévision, séries temporelles, restitution) doivent y figurer pour renforcer l'adéquation perçue dès le premier coup d'œil.",
+        "sourceIds": [
+          "proj-prevision-tramway",
+          "exp-banque-atlantique-2025"
+        ]
+      }
+    ]
+  }
+}

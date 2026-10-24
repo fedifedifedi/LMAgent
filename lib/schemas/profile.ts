@@ -3,7 +3,7 @@ import { z } from "zod";
 // Messages d'erreur Zod en français par défaut (formulaire du profil, et relances envoyées au modèle).
 z.config(z.locales.fr());
 
-// Les .describe() sont repris dans le JSON Schema envoyé au LLM (Gemini ne gère pas "pattern").
+// Les .describe() sont repris dans le JSON Schema envoyé au LLM (certains modèles ignorent "pattern").
 // Dates à la précision de la source : un CV qui ne donne que l'année ne doit pas forcer un mois inventé.
 const yearMonth = z
   .string("Date obligatoire (AAAA ou AAAA-MM)")
@@ -79,7 +79,7 @@ export const LanguageSchema = z.object({
 export const AvailabilitySchema = z.object({
   contractTypes: z.array(z.enum(CONTRACT_TYPES)).min(1, "Choisis au moins un type de contrat"),
   durationMonths: z.number("Nombre de mois").int("Nombre entier de mois").positive("Durée positive").optional(), // ex. 6 pour un stage PFE
-  // Une seule regex, sans format "date" : avec une union [iso.date, YYYY-MM], Gemini privilégiait la date
+  // Une seule regex, sans format "date" : avec une union [iso.date, YYYY-MM], le modèle (Gemini, au début du projet) privilégiait la date
   // complète et inventait le jour ("février 2027" -> 2027-02-02).
   startDate: z
     .string()

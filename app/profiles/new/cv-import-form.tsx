@@ -1,7 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { importCvAction, type ImportCvState } from "@/app/profiles/new/actions";
+import { getImportJobAction, importCvAction, type ImportCvState } from "@/app/profiles/new/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,20 +19,81 @@ type Selected =
 
 const kilobytes = (bytes: number) => `${Math.round(bytes / 1024).toLocaleString("fr-FR")} Ko`;
 
+/** Délai affiché côté page (le serveur abandonne un peu avant, cf. lib/cv/import-job.ts). */
+const TIMEOUT_MS = 90_000;
+const POLL_MS = 2_000;
+
+type Watch = { jobId: string; startedAt: number } | null;
+
 export function CvImportForm() {
   const [mode, setMode] = useState<Mode>("file");
   const [selected, setSelected] = useState<Selected | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
 
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  // Clé d'idempotence d'un envoi : une requête répétée (proxy, double clic) ne crée pas un second import.
+  const requestKey = useRef<string | null>(null);
+  const [watch, setWatch] = useState<Watch>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [jobError, setJobError] = useState<string | null>(null);
+
   // L'image envoyée est la version redimensionnée, pas le fichier d'origine.
-  const [state, formAction, pending] = useActionState<ImportCvState, FormData>(async (previous, formData) => {
+  const [state, formAction, submitting] = useActionState<ImportCvState, FormData>(async (previous, formData) => {
     if (formData.get("mode") === "file" && selected?.kind === "image") {
       const name = selected.name.replace(/\.[^.]+$/, "") + ".jpg";
       formData.set("file", new File([selected.blob], name, { type: "image/jpeg" }));
     }
-    return importCvAction(previous, formData);
+    requestKey.current ??= crypto.randomUUID();
+    formData.set("requestKey", requestKey.current);
+    setJobError(null);
+    const result = await importCvAction(previous, formData);
+    if (result.jobId) {
+      setElapsed(0);
+      setWatch({ jobId: result.jobId, startedAt: Date.now() });
+    }
+    else requestKey.current = null;
+    return result;
   }, {});
+
+  // Suivi de l'extraction en arrière-plan : statut toutes les 2 s, délai maximum de 90 s.
+  useEffect(() => {
+    if (!watch) return;
+    let stopped = false;
+    const stop = (message?: string) => {
+      stopped = true;
+      setWatch(null);
+      requestKey.current = null;
+      if (message) setJobError(message);
+    };
+    const timer = window.setInterval(async () => {
+      if (stopped) return;
+      const ms = Date.now() - watch.startedAt;
+      setElapsed(ms);
+      const job = await getImportJobAction(watch.jobId);
+      if (stopped) return;
+      if (!("status" in job)) return stop(job.error);
+      if (job.status === "DONE" && job.importId) {
+        stopped = true;
+        router.push(`/profiles/import/${job.importId}`);
+      } else if (job.status === "FAILED") stop(job.error ?? "L'analyse a échoué.");
+      else if (ms > TIMEOUT_MS) stop("L'agent n'a pas répondu en 90 secondes. Réessaie : un CV en PDF texte prend en général moins d'une minute.");
+    }, POLL_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [watch, router]);
+
+  const pending = submitting || watch !== null;
+  const retry = () => {
+    requestKey.current = null;
+    setJobError(null);
+    formRef.current?.requestSubmit();
+  };
+  // Estimation honnête : un PDF texte est lu par le serveur, l'agent ne fait que ranger ; une image est lue par l'agent.
+  const estimate = mode === "file" && selected?.kind === "image" ? "jusqu'à 1 min 30 pour une photo" : "en général 15 à 45 secondes";
 
   useEffect(() => {
     if (selected?.kind !== "image") return;
@@ -85,7 +147,7 @@ export function CvImportForm() {
   const canSubmit = !pending && !preparing && (mode === "text" || (selected !== null && !fileError));
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form ref={formRef} action={formAction} className="flex flex-col gap-6">
       <input type="hidden" name="mode" value={mode} />
 
       <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
@@ -130,7 +192,7 @@ export function CvImportForm() {
             />
           </label>
           <p className="text-sm text-muted-foreground">
-            Une photo ou un PDF scanné est lu directement par le modèle : ce qui est illisible est laissé vide, à toi de le compléter.
+            Une photo ou un PDF scanné est lu directement par l&apos;agent : ce qui est illisible est laissé vide, à toi de le compléter.
           </p>
 
           {preparing && <p className="text-sm text-muted-foreground">Préparation de l&apos;image…</p>}
@@ -179,10 +241,24 @@ export function CvImportForm() {
         </TabsContent>
       </Tabs>
 
-      {state.error && (
+      {(jobError ?? state.error) && !pending && (
         <Alert variant="destructive" aria-live="polite">
           <AlertTitle>Import impossible</AlertTitle>
-          <AlertDescription>{state.error}</AlertDescription>
+          <AlertDescription>
+            <p>{jobError ?? state.error}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              {jobError && (
+                <Button type="button" size="sm" onClick={retry}>
+                  Réessayer
+                </Button>
+              )}
+              {(jobError ?? state.error)?.includes("Code d'accès") && (
+                <a href="/acces" className="underline underline-offset-2">
+                  Saisir un code d&apos;accès
+                </a>
+              )}
+            </div>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -190,8 +266,16 @@ export function CvImportForm() {
         <Button type="submit" disabled={!canSubmit} className="btn-shine">
           {pending ? "Analyse en cours…" : "Analyser le CV"}
         </Button>
-        {pending && <p className="text-sm text-muted-foreground">Extraction du profil par le modèle, quelques secondes…</p>}
+        {pending && (
+          <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
+            Extraction du profil par l&apos;agent : {Math.round(elapsed / 1000)} s ({estimate}, 90 s au maximum).
+          </p>
+        )}
       </div>
+      <p className="text-xs text-muted-foreground">
+        Ton CV est envoyé à Cominty, le service d&apos;agent IA utilisé par LMAgent, pour être analysé. Rien n&apos;est
+        enregistré dans ton profil tant que tu ne l&apos;as pas vérifié.
+      </p>
     </form>
   );
 }

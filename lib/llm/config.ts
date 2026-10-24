@@ -2,46 +2,26 @@ import "server-only";
 import { z } from "zod";
 import { LLMConfigError } from "@/lib/llm/errors";
 
-// Une variable vide (ex. "LLM_MODEL=" dans .env.local) compte comme absente.
-const optionalString = z.preprocess((value) => (value === "" ? undefined : value), z.string().trim().min(1).optional());
-
+/**
+ * Toute l'IA passe par l'agent managé Cominty (exigence du challenge) ; le mock sert aux tests et à la démo locale.
+ * La configuration de Cominty (COMINTY_*) est lue par lib/cominty/config.ts.
+ */
 const EnvSchema = z.object({
-  LLM_PROVIDER: z.preprocess(
-    (value) => (value === "" ? undefined : value),
-    z.enum(["mock", "anthropic", "gemini"]).default("mock"),
-  ),
-  LLM_MODEL: optionalString,
-  /** Modèle plus léger pour les étapes de recopie et de comparaison (analyse d'offre, correspondance). */
-  LLM_MODEL_FAST: optionalString,
-  ANTHROPIC_API_KEY: optionalString,
-  GEMINI_API_KEY: optionalString,
+  LLM_PROVIDER: z.preprocess((value) => (value === "" ? undefined : value), z.enum(["mock", "cominty"]).default("mock")),
 });
 
-export type LLMConfig =
-  | { provider: "mock" }
-  | { provider: "anthropic" | "gemini"; model: string; apiKey: string };
-
-/**
- * "default" : rédaction, critique, réécriture, extraction du CV (LLM_MODEL).
- * "fast" : analyzeOffer et matchProfile (LLM_MODEL_FAST, sinon LLM_MODEL) — économise le quota.
- */
-export type ModelTier = "default" | "fast";
+export type LLMConfig = { provider: "mock" | "cominty" };
 
 /** Lue au premier appel (pas à l'import) : le build et le mock tournent sans configuration. */
-export function readLLMConfig(env: Record<string, string | undefined> = process.env, tier: ModelTier = "default"): LLMConfig {
-  const parsed = EnvSchema.safeParse(env);
+export function readLLMConfig(env: Record<string, string | undefined> = process.env): LLMConfig {
+  const parsed = EnvSchema.safeParse({ LLM_PROVIDER: env.LLM_PROVIDER });
   if (!parsed.success) {
-    throw new LLMConfigError(`Configuration LLM invalide dans .env.local :\n${z.prettifyError(parsed.error)}`);
+    // La valeur reçue n'est pas un secret : l'afficher permet de trouver d'où elle vient (souvent un ancien .env.local).
+    throw new LLMConfigError(
+      `LLM_PROVIDER vaut « ${env.LLM_PROVIDER} », valeur qui n'existe plus (Gemini et Anthropic ont été retirés). ` +
+        "Mets LLM_PROVIDER=cominty (agent réel) ou LLM_PROVIDER=mock (démo hors ligne) dans .env.local ou dans les variables " +
+        "d'environnement (Railway), puis redémarre le serveur.",
+    );
   }
-  const { LLM_PROVIDER: provider, LLM_MODEL: mainModel, LLM_MODEL_FAST: fastModel } = parsed.data;
-  const model = tier === "fast" ? (fastModel ?? mainModel) : mainModel;
-  if (provider === "mock") return { provider };
-
-  const keyName = provider === "anthropic" ? "ANTHROPIC_API_KEY" : "GEMINI_API_KEY";
-  const apiKey = parsed.data[keyName];
-  if (!model) {
-    throw new LLMConfigError(`LLM_PROVIDER=${provider} : définis LLM_MODEL dans .env.local (aucun modèle par défaut).`);
-  }
-  if (!apiKey) throw new LLMConfigError(`LLM_PROVIDER=${provider} : définis ${keyName} dans .env.local.`);
-  return { provider, model, apiKey };
+  return { provider: parsed.data.LLM_PROVIDER };
 }

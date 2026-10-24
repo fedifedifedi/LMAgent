@@ -1,12 +1,14 @@
 import type { z } from "zod";
 
-export type ProviderName = "mock" | "anthropic" | "gemini";
+export type ProviderName = "mock" | "cominty";
 
 export type TokenUsage = {
   inputTokens: number;
   outputTokens: number;
   /** Tokens d'entrée servis depuis le cache (sous-ensemble de inputTokens). */
   cacheReadTokens?: number;
+  /** Coût facturé en dollars, quand le provider le donne (Cominty). */
+  costUsd?: number;
   /** true pour le mock : estimation (~4 caractères par token), pas un comptage réel. */
   estimated?: boolean;
 };
@@ -17,6 +19,8 @@ export type LLMUsage = TokenUsage & {
   model: string;
   attempts: number;
   durationMs: number;
+  /** Résultat réutilisé (même CV déjà analysé) : aucun appel, aucun coût. */
+  cached?: boolean;
 };
 
 /** Historique neutre ; `native` porte la réponse brute du provider pour la lui renvoyer telle quelle. */
@@ -43,6 +47,8 @@ export type CompletionRequest = {
   system: string;
   turns: ConversationTurn[];
   maxOutputTokens: number;
+  /** Abandon demandé par l'appelant (délai dépassé). */
+  signal?: AbortSignal;
 };
 
 export type Completion = {

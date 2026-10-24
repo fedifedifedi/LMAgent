@@ -25,8 +25,10 @@ async function getBrowser(): Promise<Browser> {
   }
   if (!existsSync(executablePath)) throw new PdfError(`Export PDF : CHROME_PATH ne mène à aucun fichier (${executablePath}). Vérifie le chemin d'Edge dans .env.local.`);
 
+  // Conteneur Linux (Railway) : Chromium tourne sans bac à sable et sans /dev/shm (trop petit dans Docker).
+  const containerArgs = process.env.CHROME_NO_SANDBOX === "1" ? ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] : [];
   browser ??= puppeteer
-    .launch({ executablePath, headless: true, args: ["--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-gpu"] })
+    .launch({ executablePath, headless: true, args: ["--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-gpu", ...containerArgs] })
     .catch((error: unknown) => {
       browser = null;
       throw new PdfError(`Impossible de lancer Edge pour l'export PDF (${error instanceof Error ? error.message : String(error)}).`);

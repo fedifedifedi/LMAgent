@@ -27,6 +27,7 @@ export async function createCvImport(input: {
   degraded: boolean;
   issues?: string;
   usage: LLMUsage;
+  extractionKey?: string;
 }): Promise<{ id: string }> {
   return db.cvImport.create({
     data: {
@@ -36,6 +37,15 @@ export async function createCvImport(input: {
     },
     select: { id: true },
   });
+}
+
+/**
+ * Dernière extraction réussie (non dégradée) d'exactement le même texte de CV : un réimport la réutilise au lieu de
+ * rappeler l'agent (instantané, gratuit). Seulement pour le texte : une image ou un scan n'a pas de texte comparable.
+ */
+export async function findReusableCvImport(text: string, extractionKey: string): Promise<CvImportRecord | null> {
+  const row = await db.cvImport.findFirst({ where: { text, extractionKey, readMode: "TEXT", degraded: false }, orderBy: { createdAt: "desc" }, select: { id: true } });
+  return row ? getCvImport(row.id) : null;
 }
 
 export async function getCvImport(id: string): Promise<CvImportRecord | null> {

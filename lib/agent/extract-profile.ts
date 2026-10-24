@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
+import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { generateObject, type GenerateObjectResult } from "@/lib/llm";
+import { toTargetJsonSchema } from "@/lib/llm/json-schema";
 import type { Attachment, LLMProvider } from "@/lib/llm/types";
 import { LLM_OUTPUTS } from "@/lib/schemas/llm-outputs";
 import type { ProfileDraft } from "@/lib/schemas/profile";
@@ -8,7 +11,9 @@ export const EXTRACT_PROFILE_SYSTEM = `You extract a candidate profile from a CV
 Rules:
 - Copy, do not write. Use only information explicitly present in the CV. If a field is not in the CV, leave it out. Never guess, infer or complete.
 - Free text (titles, achievements, summary) stays in the language of the CV and as close to its wording as possible.
-- Dates: exactly as precise as written. "2022" becomes "2022"; "mars 2023" becomes "2023-03". Never add a month or a day that is not written. A current position ("aujourd'hui", "present", "en cours") has end = null.
+- Dates: exactly as precise as written. "2022" becomes "2022"; "mars 2023" becomes "2023-03". Never add a month or a day that is not written. A current position ("aujourd'hui", "present", "en cours") has end = null. A range ("mi-janvier / début février 2027") keeps only the certain part ("2027").
+- headline: the professional title only, without availability, contract type or date.
+- availability.durationMonths: an integer only when a single duration is written; a range ("4 à 6 mois") leaves it out.
 - summary: only if the CV contains its own summary, profile or tagline section; copy it. Otherwise leave summary out. Do not summarize the CV yourself.
 - availability: only what the CV states (contract sought, duration, start date, mobility, remote work). Leave out anything not written.
 - Language levels: use a CEFR level or "native" only when the CV states it or uses an unambiguous equivalent ("langue maternelle" = native, "bilingue" = C2). Otherwise leave the level out.
@@ -22,12 +27,21 @@ export const NATIVE_READING_RULE = `- The CV is the attached file. If a part is 
 
 export type ExtractProfileResult = GenerateObjectResult<ProfileDraft>;
 
+/**
+ * Empreinte d'une extraction : agent (provider + modèle, donc COMINTY_EXTRACT_AGENT_ID), consignes, règles de preuve et
+ * schéma cible. Elle change dès que l'un d'eux change : le cache des CV déjà analysés est alors invalidé.
+ */
+export function extractionKey(provider: Pick<LLMProvider, "name" | "model">): string {
+  const parts = [provider.name, provider.model, EXTRACT_PROFILE_SYSTEM, NATIVE_READING_RULE, EVIDENCE_RULES, JSON.stringify(toTargetJsonSchema(LLM_OUTPUTS.profile_draft.schema))];
+  return createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 32);
+}
+
 export type CvSourceContent = { text: string } | { file: Attachment };
 
 /** Extraction d'un CV (texte, ou fichier lu nativement) vers un brouillon de profil. Recopie structurée : réflexion basse. */
 export function extractProfile(
   source: CvSourceContent,
-  options: { provider?: LLMProvider } = {},
+  options: { provider?: LLMProvider; maxAttempts?: number; signal?: AbortSignal } = {},
 ): Promise<ExtractProfileResult> {
   const native = "file" in source;
   return generateObject({
@@ -37,5 +51,7 @@ export function extractProfile(
     attachments: native ? [source.file] : undefined,
     reasoning: "low",
     provider: options.provider,
+    maxAttempts: options.maxAttempts,
+    signal: options.signal,
   });
 }

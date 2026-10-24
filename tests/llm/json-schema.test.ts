@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MOCK_FIXTURES } from "@/lib/llm/fixtures";
-import { sanitizeForAnthropic, sanitizeForGemini, toTargetJsonSchema } from "@/lib/llm/json-schema";
+import { toTargetJsonSchema } from "@/lib/llm/json-schema";
 import { LLM_OUTPUTS } from "@/lib/schemas/llm-outputs";
 
 // Parcours libre d'un JSON Schema généré : le typer finement n'apporterait rien au test.
@@ -44,15 +44,10 @@ describe("JSON Schema de profile_draft (schéma cible envoyé au modèle)", () =
     expect(schema.properties.languages.items.required).toEqual(["name"]);
   });
 
-  test("format des dates décrit (pattern + description, Gemini ne gardant que la description)", () => {
+  test("format des dates décrit (pattern + description)", () => {
     const start = schema.properties.experiences.items.properties.start;
     expect(start.pattern).toBeDefined();
     expect(start.description).toContain("YYYY-MM");
-    const gemini = sanitizeForGemini(schema) as Schema;
-    expect(gemini.properties.experiences.items.properties.start).toEqual({
-      type: "string",
-      description: "YYYY, or YYYY-MM only if the month is written in the source. Never add a month that is not written.",
-    });
   });
 
   test("aucune valeur par défaut ni schéma vide (signe d'un .catch()/.default() dans le schéma cible)", () => {
@@ -64,27 +59,10 @@ describe("JSON Schema de profile_draft (schéma cible envoyé au modèle)", () =
 
 describe("toutes les sorties LLM", () => {
   for (const output of Object.values(LLM_OUTPUTS)) {
-    test(`${output.name} : conversion JSON Schema, version Gemini sans mot-clé refusé`, () => {
+    test(`${output.name} : conversion JSON Schema (envoyée à l'agent Cominty), sans valeur par défaut`, () => {
       const schema = toTargetJsonSchema(output.schema);
       expect(schema.type).toBe("object");
-      const keys = collectKeys(sanitizeForGemini(schema));
-      for (const forbidden of ["pattern", "minLength", "maxLength", "const", "default", "$schema"]) {
-        expect(keys.has(forbidden)).toBe(false);
-      }
-    });
-
-    test(`${output.name} : version Anthropic, enums conservés et objets fermés`, () => {
-      const schema = sanitizeForAnthropic(toTargetJsonSchema(output.schema));
-      const keys = collectKeys(schema);
-      for (const forbidden of ["pattern", "minLength", "maxLength", "default", "$schema"]) {
-        expect(keys.has(forbidden)).toBe(false);
-      }
-      const enumsBefore = JSON.stringify(toTargetJsonSchema(output.schema)).match(/"enum":\[[^\]]*\]/g) ?? [];
-      const enumsAfter = JSON.stringify(schema).match(/"enum":\[[^\]]*\]/g) ?? [];
-      expect(enumsAfter).toEqual(enumsBefore);
-      const objects = JSON.stringify(schema).match(/"type":"object"/g)?.length ?? 0;
-      const closed = JSON.stringify(schema).match(/"additionalProperties":false/g)?.length ?? 0;
-      expect(closed).toBe(objects);
+      expect(collectKeys(schema).has("default")).toBe(false);
     });
 
     test(`${output.name} : la fixture mock passe le schéma cible et le schéma tolérant`, () => {
