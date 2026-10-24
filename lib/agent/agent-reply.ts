@@ -4,6 +4,7 @@ import { extractJsonText } from "@/lib/cominty/json";
 import { normalizeLetterText } from "@/lib/letters/text";
 import { answerSources, type CandidateAnswer } from "@/lib/agent/questions";
 import { letterWordCount } from "@/lib/agent/letter-checks";
+import { sentenceRef } from "@/lib/agent/corrections";
 import { letterSchema, OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { buildSourceCatalog, sourceIds } from "@/lib/agent/sources";
 import type { Profile } from "@/lib/schemas/profile";
@@ -79,7 +80,8 @@ export type AgentInsights = {
 };
 
 /** Lit le texte de l'agent : JSON (bloc de code toléré) validé par le schéma ; sinon les erreurs, pour la correction. */
-export function parseAgentReply(content: string, ids: [string, ...string[]]): { ok: true; reply: AgentReply } | { ok: false; issues: string } {
+/** knownAnalysis : analyse du premier tour ; le tour allégé (après les réponses) ne la renvoie pas. */
+export function parseAgentReply(content: string, ids: [string, ...string[]], knownAnalysis?: OfferAnalysis): { ok: true; reply: AgentReply } | { ok: false; issues: string } {
   const text = extractJsonText(content);
   let json: unknown;
   try {
@@ -88,6 +90,7 @@ export function parseAgentReply(content: string, ids: [string, ...string[]]): { 
     return { ok: false, issues: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}` };
   }
   const needsInput = (json as { status?: unknown } | null)?.status === "needs_input";
+  if (!needsInput && knownAnalysis && json && typeof json === "object" && !("analysis" in json)) json = { ...json, analysis: knownAnalysis };
   if (!needsInput) json = dropEmptyOptionals(json);
   const parsed = needsInput ? NeedsInputSchema.safeParse(json) : readyReplySchema(ids).safeParse(json);
   if (parsed.success) return { ok: true, reply: parsed.data };
@@ -176,6 +179,27 @@ Règles :
 - analysis, scoreReasons, strengths, gaps et cvAdjustments en français ; la lettre dans la langue de l'offre.
 Questions au candidat (AVANT d'écrire la lettre) : compare chaque exigence de l'offre au profil. Pour chaque exigence que le profil ne prouve pas — d'abord les obligatoires (required), puis les appréciées (preferred) — pose une question avec la fonction de questions native de Cominty, au plus 3 en tout, une par exigence, en nommant l'exigence (« As-tu déjà utilisé Kubernetes ? Si oui, dans quel projet ou quelle expérience ? »). Réponds alors seulement {"status":"needs_input","analysis":{… comme ci-dessus},"gaps":[{"requirement":"nom exact","importance":"required|preferred"}]}, SANS lettre. Si le profil prouve toutes les exigences, écris directement l'objet "ready".`;
 
+/**
+ * Contrat allégé du tour qui suit les réponses : l'analyse est déjà connue (premier tour), l'agent ne la réécrit pas.
+ * Au test réel, ce tour durait 202 s pour régénérer l'objet complet.
+ */
+export function agentLetterContract(requirements: string[]): string {
+  return `Format de réponse OBLIGATOIRE : un seul objet JSON, sans Markdown ni bloc de code, avec exactement ces clés (camelCase), SANS la clé "analysis" (l'application garde celle de ton premier message) :
+{"status":"ready",
+"score":0,
+"scoreReasons":["3 à 5 raisons courtes"],
+"strengths":[{"requirement":"nom exact d'une exigence","status":"matched|partial","evidence":"preuve tirée du profil ou d'une réponse","sourceIds":["id autorisé"]}],
+"gaps":[{"requirement":"nom exact d'une exigence","importance":"required|preferred","note":"…"}],
+"letter":{"language":"fr|en","subject":"objet","salutation":"formule d'appel","paragraphs":[{"sentences":[{"text":"une phrase","sourceIds":["id autorisé"]}]}],"closing":"formule de politesse seule"},
+"cvAdjustments":[{"section":"…","change":"…","reason":"…","sourceIds":["id autorisé"]}]}
+Noms exacts des exigences (strengths et gaps) : ${requirements.map((name) => `« ${name} »`).join(", ")}.
+Règles :
+- La lettre : 3 à 6 paragraphes, 250 à 300 mots en tout, découpée en phrases. PAS d'en-tête, de date, de lieu, de coordonnées ni de signature : l'application les ajoute. "closing" = la formule de politesse seule.
+- Chaque phrase qui affirme un fait sur le candidat cite au moins un id autorisé ; une phrase sur l'entreprise ou l'offre n'en cite aucun. Jamais "profile-summary" comme preuve d'un projet précis.
+- Si l'offre nomme un contact, la formule d'appel s'adresse à cette personne. Un manque n'est jamais présenté comme une compétence acquise.
+- scoreReasons, strengths, gaps et cvAdjustments en français ; la lettre dans la langue de l'offre.`;
+}
+
 /** Premier message : en-tête « LMAgent », profil validé (seule source de faits), ids autorisés, offre, contrat de sortie. */
 export function agentLetterMessage(profile: Profile, offerText: string): string {
   return [
@@ -192,7 +216,8 @@ export function agentLetterMessage(profile: Profile, offerText: string): string 
  * Réponses du candidat : chaque « Oui » devient une source à citer (candidate-answer-N) ; « Non », « Passer » et
  * « souhaite l'apprendre » interdisent de présenter la compétence comme acquise.
  */
-export function agentAnswersMessage(answers: CandidateAnswer[]): string {
+/** analysis : analyse du premier tour ; si elle est connue, le contrat allégé (sans analysis) est demandé. */
+export function agentAnswersMessage(answers: CandidateAnswer[], analysis?: OfferAnalysis): string {
   const sources = answerSources(answers);
   let yes = 0;
   const lines = answers.map((a) => {
@@ -205,41 +230,56 @@ export function agentAnswersMessage(answers: CandidateAnswer[]): string {
     "LMAgent — réponses du candidat à tes questions :",
     lines.join("\n"),
     `Ids de sources autorisés : ${[...new Set([...sources.map((s) => s.id)])].join(", ") || "aucun nouveau"} (en plus de ceux du premier message).`,
+    ...(sources.length
+      ? [
+          "Tiens compte des réponses OUI : l'exigence devient une force (strengths, status matched ou partial, avec sa source candidate-answer-N), le score et scoreReasons l'intègrent, et cvAdjustments propose de l'ajouter au CV (même source).",
+        ]
+      : []),
     EVIDENCE_RULES,
-    'Écris maintenant l\'objet JSON complet (status "ready"), au format du premier message. Ne pose plus de question.',
+    ...(analysis
+      ? [agentLetterContract(analysis.requirements.map((r) => r.name)), 'Écris maintenant l\'objet JSON (status "ready"), sans "analysis". Ne pose plus de question.']
+      : ['Écris maintenant l\'objet JSON complet (status "ready"), au format du premier message. Ne pose plus de question.']),
   ].join("\n\n");
 }
 
-/** Relecture critique : problèmes de preuve détectés par le code, renvoyés à l'agent (correction unique). */
-export function agentEvidenceCorrectionMessage(problems: Array<{ message: string; sentence?: string }>, letter?: LetterContent): string {
+/**
+ * Relecture critique, correction CIBLÉE : seules les phrases signalées sont renvoyées (avec leur paragraphe), et
+ * l'agent ne renvoie que leurs remplacements, plus d'éventuelles phrases de compensation (lib/agent/corrections.ts).
+ */
+export function agentEvidenceCorrectionMessage(problems: Array<{ message: string; sentence?: string }>, letter: LetterContent): string {
+  const refs = new Map<string, { ref: string; paragraph: string }>();
+  letter.paragraphs.forEach((p, pi) =>
+    p.sentences.forEach((s, si) => {
+      if (!refs.has(s.text)) refs.set(s.text, { ref: sentenceRef(pi, si), paragraph: p.sentences.map((x) => x.text).join(" ") });
+    }),
+  );
+  const flagged = [...new Set(problems.map((p) => p.sentence).filter((s): s is string => Boolean(s && refs.has(s))))];
   // Chaque phrase est montrée dans son paragraphe : au test réel, une phrase corrigée répétait la phrase voisine.
-  const context = letter
-    ? [...new Set(problems.map((p) => p.sentence).filter(Boolean))].map((sentence) => {
-        const paragraph = letter.paragraphs.find((p) => p.sentences.some((s) => s.text === sentence));
-        return `Phrase : « ${sentence} »\n  Son paragraphe : « ${paragraph?.sentences.map((s) => s.text).join(" ") ?? sentence} »`;
-      })
-    : [];
-  const words = letter ? letterWordCount(letter) : undefined;
+  const context = flagged.map((sentence) => {
+    const { ref, paragraph } = refs.get(sentence)!;
+    const reasons = problems.filter((p) => p.sentence === sentence).map((p) => p.message).join(" ; ");
+    return `[${ref}] « ${sentence} »\n  Problème : ${reasons}\n  Son paragraphe : « ${paragraph} »`;
+  });
   return [
-    "LMAgent — relecture : ta lettre contient des affirmations qui ne sont pas écrites dans le CV pour l'expérience citée.",
-    `Problèmes :\n${problems.map((p) => `- ${p.message}`).join("\n")}`,
-    ...(context.length ? [`Phrases concernées, avec leur paragraphe :\n${context.join("\n")}`] : []),
-    "Corrige ces phrases : reprends les mots et les verbes du CV pour l'expérience citée, ou retire l'affirmation. Ne change rien d'autre.",
+    "LMAgent — relecture ciblée : ces phrases de ta lettre contiennent des affirmations qui ne sont pas écrites dans le CV pour l'expérience citée.",
+    context.join("\n"),
+    "Corrige seulement ces phrases : reprends les mots et les verbes du CV pour l'expérience citée, ou retire l'affirmation (texte vide).",
     "La phrase corrigée ne répète pas ce que disent déjà les phrases voisines du paragraphe (outils, résultats).",
-    `${words !== undefined ? `La lettre fait ${words} mots. ` : ""}Elle doit rester entre 250 et 300 mots : si tu retires une affirmation, compense par un autre fait du profil, avec sa source.`,
+    `La lettre fait ${letterWordCount(letter)} mots. Elle doit rester entre 250 et 300 mots : si tu retires une affirmation, compense par un autre fait du profil, avec sa source, dans "additions" (au plus 3 phrases, placées après la phrase indiquée).`,
     EVIDENCE_RULES,
-    AGENT_OUTPUT_CONTRACT,
-    "Renvoie l'objet JSON complet corrigé, et lui seul.",
+    `Format de réponse OBLIGATOIRE : un seul objet JSON, sans Markdown, et rien d'autre :
+{"status":"corrections","replacements":[{"ref":"P2.S1","text":"phrase corrigée, ou \\"\\" pour la retirer","sourceIds":["id autorisé"]}],"additions":[{"after":"P2.S1","text":"phrase de compensation","sourceIds":["id autorisé"]}]}
+Une entrée de "replacements" par phrase ci-dessus. Ne renvoie PAS la lettre complète.`,
   ].join("\n\n");
 }
 
-/** Relance unique quand le JSON ne respecte pas le format attendu. */
-export function agentCorrectionMessage(issues: string): string {
+/** Relance unique quand le JSON ne respecte pas le format attendu (contrat allégé si l'analyse est déjà connue). */
+export function agentCorrectionMessage(issues: string, analysis?: OfferAnalysis): string {
   return [
     "LMAgent — ta réponse ne respecte pas le format JSON attendu.",
     `Erreurs :\n${issues}`,
     EVIDENCE_RULES,
-    AGENT_OUTPUT_CONTRACT,
+    analysis ? agentLetterContract(analysis.requirements.map((r) => r.name)) : AGENT_OUTPUT_CONTRACT,
     "Renvoie l'objet JSON complet corrigé, et lui seul. N'invente aucune information.",
   ].join("\n\n");
 }

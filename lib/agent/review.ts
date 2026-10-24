@@ -24,6 +24,8 @@ export type LetterReview = {
   /** clean : rien à corriger ; correcting : correction demandée à l'agent ; done : corrigée ; reported : signalée sans correction. */
   status: "clean" | "correcting" | "done" | "reported";
   changes: ReviewChange[];
+  /** Phrases de compensation sourcées ajoutées par l'agent (lettre gardée entre 250 et 300 mots). */
+  added?: number;
   at: string;
 };
 
@@ -70,6 +72,19 @@ export function completeReview(review: LetterReview, after: LetterContent, after
   };
 }
 
+/** Après la correction ciblée : la version finale de chaque phrase est connue (null = retirée par l'agent ou le code). */
+export function resolveReview(review: LetterReview, outcomes: Map<string, string | null>, added: number): LetterReview {
+  return {
+    status: "done",
+    at: new Date().toISOString(),
+    ...(added ? { added } : {}),
+    changes: review.changes.map((change) => {
+      const after = outcomes.get(change.before) ?? null;
+      return { ...change, after, outcome: after === null ? "removed" : "corrected" };
+    }),
+  };
+}
+
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
 /** Libellé de l'étape « Relecture » dans la frise. */
@@ -82,6 +97,7 @@ export function reviewLabel(review: LetterReview): string {
     count((c) => UNSOURCED.has(c.kind) && c.outcome === "corrected") && plural(count((c) => UNSOURCED.has(c.kind) && c.outcome === "corrected"), "affirmation sans source corrigée", "affirmations sans source corrigées"),
     count((c) => c.kind === "verb_inflated" && c.outcome !== "unchanged") && plural(count((c) => c.kind === "verb_inflated" && c.outcome !== "unchanged"), "verbe corrigé", "verbes corrigés"),
     count((c) => c.outcome === "unchanged") && plural(count((c) => c.outcome === "unchanged"), "point restant à vérifier", "points restants à vérifier"),
+    review.added && plural(review.added, "phrase sourcée ajoutée", "phrases sourcées ajoutées"),
   ].filter(Boolean);
   return `Relecture : ${parts.join(", ")}`;
 }

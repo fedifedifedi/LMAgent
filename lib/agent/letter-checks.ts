@@ -91,7 +91,14 @@ export function checkLetter(
 }
 
 /** Noms propres et outils d'une phrase (mots à majuscule hors premier mot : StackStorm, Vault, Grafana). */
-const properNames = (text: string) => new Set(text.split(/[^\p{L}\p{N}+#.]+/u).slice(1).filter((w) => /^\p{Lu}/u.test(w) && w.length >= 3));
+const properNames = (text: string) =>
+  new Set(
+    text
+      .split(/[^\p{L}\p{N}+#.]+/u)
+      .slice(1)
+      .map((w) => w.replace(/\.+$/, "")) // « Grafana. » en fin de phrase = « Grafana »
+      .filter((w) => /^\p{Lu}/u.test(w) && w.length >= 3),
+  );
 
 /** Deux phrases consécutives d'un paragraphe qui citent au moins 3 mêmes noms : répétition à reformuler. */
 export function repeatedTerms(letter: LetterContent): LetterIssue[] {

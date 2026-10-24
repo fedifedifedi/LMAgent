@@ -1,8 +1,9 @@
 import { evidenceContext } from "@/lib/agent/evidence-checks";
-import { AnswersSchema, notAcquired, requirementsFrom, standardizeQuestions, toLearn, withRequirements, type CandidateAnswer } from "@/lib/agent/questions";
-import { OfferAnalysisSchema, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
+import { answerSources, AnswersSchema, notAcquired, requirementsFrom, standardizeQuestions, toLearn, withRequirements, type CandidateAnswer } from "@/lib/agent/questions";
+import { OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { extractJsonText } from "@/lib/cominty/json";
-import { completeReview, REVIEW_STEP_KEY, reviewLabel, startReview, type LetterReview } from "@/lib/agent/review";
+import { applyCorrections, parseCorrections } from "@/lib/agent/corrections";
+import { completeReview, resolveReview, REVIEW_STEP_KEY, reviewLabel, startReview, type LetterReview } from "@/lib/agent/review";
 import { checkLetter, EVIDENCE_ISSUE_KINDS } from "@/lib/agent/letter-checks";
 import { eventLabel } from "@/lib/agent/agent-labels";
 import {
@@ -13,6 +14,7 @@ import {
   agentSourceIds,
   parseAgentReply,
   toLetterFields,
+  type AgentInsights,
 } from "@/lib/agent/agent-reply";
 import { ComintyError, ComintyStreamError } from "@/lib/cominty/errors";
 import { REPLAY_AGENT_ID } from "@/lib/cominty/replay-client";
@@ -92,6 +94,30 @@ function withAnswers(match: ProfileMatch, answers: CandidateAnswer[]): ProfileMa
   return { ...match, requirements: match.requirements.map((r) => (absent.has(r.name.toLocaleLowerCase("fr")) ? { ...r, status: "missing" as const, evidence: "", sourceIds: [] } : r)) };
 }
 
+/**
+ * Réponses « Oui » : l'exigence n'est jamais laissée « absente » (au moins partielle, preuve = la réponse) et un
+ * ajustement du CV propose de l'ajouter, si l'agent ne l'a pas fait lui-même.
+ */
+export function withYesAnswers(match: ProfileMatch, insights: AgentInsights, answers: CandidateAnswer[]): { match: ProfileMatch; insights: AgentInsights } {
+  const sources = answerSources(answers);
+  const yes = answers.filter((a) => a.choice === "yes" && a.detail).map((a, i) => ({ answer: a, id: sources[i].id }));
+  const byName = new Map(yes.filter((y) => y.answer.requirement).map((y) => [y.answer.requirement!.toLocaleLowerCase("fr"), y]));
+  const requirements = match.requirements.map((r) => {
+    const y = byName.get(r.name.toLocaleLowerCase("fr"));
+    return y && r.status === "missing" ? { ...r, status: "partial" as const, evidence: y.answer.detail!, sourceIds: [y.id] } : r;
+  });
+  const cited = new Set(insights.cvAdjustments.flatMap((c) => c.sourceIds));
+  const added = yes
+    .filter((y) => !cited.has(y.id))
+    .map((y) => ({
+      section: "Compétences et expériences",
+      change: `Ajouter ${y.answer.requirement ?? "cet élément"} : ${y.answer.detail}`,
+      reason: "Demandé par l'offre et confirmé dans ta réponse à l'agent, mais absent du CV.",
+      sourceIds: [y.id],
+    }));
+  return { match: { ...match, requirements }, insights: { ...insights, cvAdjustments: [...insights.cvAdjustments, ...added].slice(0, 8) } };
+}
+
 /** Étape « Relecture » à partir de la relecture enregistrée sur la lettre. */
 export function reviewStep(review: LetterReview): TimelineStep {
   return { key: REVIEW_STEP_KEY, label: reviewLabel(review), status: review.status === "correcting" ? "running" : "success", at: review.at };
@@ -138,11 +164,13 @@ export async function answerAgentRun(letterId: string, answers: CandidateAnswer[
   const parsedAnswers = AnswersSchema.safeParse(answers);
   if (!parsedAnswers.success) throw new AgentRunError(parsedAnswers.error.issues[0]?.message ?? "Réponse invalide.");
   // Exigence manquante (question non standardisée) : retrouvée dans l'analyse, pour « Non » et « apprendre ».
-  const analysis = (await db.letter.findUnique({ where: { id: letterId }, select: { analysis: true } }))?.analysis as OfferAnalysis | null;
+  const stored = OfferAnalysisSchema.safeParse((await db.letter.findUnique({ where: { id: letterId }, select: { analysis: true } }))?.analysis);
+  const analysis = stored.success ? stored.data : undefined;
   parsedAnswers.data = withRequirements(parsedAnswers.data, analysis?.requirements ?? []);
 
   const client = await resolveClient(clientFor, last.messageId);
-  const started = await client.sendMessage(last.threadId, agentAnswersMessage(parsedAnswers.data));
+  // Analyse connue : tour allégé (l'agent ne la réécrit pas).
+  const started = await client.sendMessage(last.threadId, agentAnswersMessage(parsedAnswers.data, analysis));
   const run = await db.agentRun.create({ data: { letterId, threadId: started.threadId, messageId: started.messageId, kind: "ANSWER", answers: json(parsedAnswers.data) } });
   await db.letter.update({ where: { id: letterId }, data: { status: "DRAFT", error: null } });
   return run.id;
@@ -227,7 +255,45 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   const letter = await db.letter.findUniqueOrThrow({ where: { id: run.letterId }, include: { profile: true } });
   const answers = await threadAnswers(run.threadId);
   const ids = agentSourceIds(ProfileSchema.parse(letter.profile.data), answers);
-  const parsed = parseAgentReply(content, ids);
+  // Analyse du premier tour (questions) : le tour allégé qui suit les réponses ne la renvoie pas.
+  const stored = OfferAnalysisSchema.safeParse(letter.analysis);
+  const knownAnalysis = stored.success ? stored.data : undefined;
+
+  // Correction ciblée de la relecture : seules les phrases signalées reviennent ; le code les applique et les relit.
+  const pendingReview = letter.review as LetterReview | null;
+  const targeted = run.kind === "CORRECTION" && letter.content && pendingReview?.status === "correcting" ? parseCorrections(content, ids) : null;
+  if (targeted && knownAnalysis && pendingReview) {
+    const firstLetter = letter.content as LetterContent;
+    if (!targeted.ok) {
+      // Format inattendu : pas de nouveau tour, la première lettre reste avec ses points à vérifier.
+      if (await claim({ status: "FAILED", error: `${targeted.issues}\n\nRéponse reçue (début) :\n${content.slice(0, 3000)}` })) {
+        await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED", review: json({ ...pendingReview, status: "reported" }) } });
+      }
+      return { type: "done" };
+    }
+    if (!(await claim({ status: "SUCCESS" }))) return { type: "run", runId: run.id };
+    const context = {
+      analysis: knownAnalysis,
+      match: letter.match as ProfileMatch,
+      evidence: evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText, answers),
+      learning: toLearn(answers),
+    };
+    const flagged = pendingReview.changes.map((c) => c.before);
+    const applied = applyCorrections(firstLetter, targeted.reply, flagged, (l) => checkLetter(l, context));
+    await db.letter.update({
+      where: { id: run.letterId },
+      data: {
+        content: json(applied.letter),
+        checks: json(checkLetter(applied.letter, context)),
+        review: json(resolveReview(pendingReview, applied.outcomes, applied.added)),
+        status: "GENERATED",
+        error: null,
+      },
+    });
+    return { type: "done" };
+  }
+
+  const parsed = parseAgentReply(content, ids, knownAnalysis);
   const issues = !parsed.ok ? parsed.issues : parsed.reply.status === "needs_input" ? 'status "needs_input" requires native Cominty questions; ask them, or answer with status "ready".' : undefined;
 
   if (parsed.ok && parsed.reply.status === "ready") {
@@ -235,6 +301,8 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
     const fields = toLetterFields(parsed.reply);
     // Réponses « Non » / « Passer » / « souhaite l'apprendre » : la compétence reste absente, quoi que dise l'agent.
     fields.match = withAnswers(fields.match, answers);
+    // Réponses « Oui » : l'exigence devient au moins partielle et une proposition d'ajout au CV existe.
+    ({ match: fields.match, insights: fields.insights } = withYesAnswers(fields.match, fields.insights, answers));
     const evidence = evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText, answers);
     const checks = checkLetter(fields.letter, { analysis: fields.analysis, match: fields.match, evidence, learning: toLearn(answers) });
     const evidenceIssues = checks.filter((check) => EVIDENCE_ISSUE_KINDS.has(check.kind));
@@ -290,7 +358,7 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   if (!(await claim({ status: "SUCCESS", error: diagnosis }))) return { type: "run", runId: run.id };
   let started;
   try {
-    started = await client.sendMessage(run.threadId, agentCorrectionMessage(issues ?? "Invalid answer"));
+    started = await client.sendMessage(run.threadId, agentCorrectionMessage(issues ?? "Invalid answer", knownAnalysis));
   } catch (error) {
     console.error("Correction Cominty :", error);
     const reason = error instanceof ComintyError ? ` (${error.message})` : "";

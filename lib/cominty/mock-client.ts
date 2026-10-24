@@ -70,17 +70,33 @@ function event(n: number, correlation: number, name: string, status: "running" |
  * Les événements imitent ceux d'un vrai flux (mise en route, réflexion, résultat avec coût).
  */
 /** readyReply : réponse « ready » personnalisée (ex. scripts/demo pour Léa Dubois), sinon celle des fixtures du mock. */
-export function createMockComintyClient(options: { delayMs?: number; askFirst?: boolean; readyReply?: (allowedIds: string[]) => unknown } = {}): AgentClient {
+/** correctionReply : réponse à la relecture ciblée ; par défaut, chaque phrase signalée ([P2.S1]) est retirée. */
+export function createMockComintyClient(
+  options: { delayMs?: number; askFirst?: boolean; readyReply?: (allowedIds: string[]) => unknown; correctionReply?: (allowedIds: string[], content: string) => unknown } = {},
+): AgentClient {
   const delayMs = options.delayMs ?? 350;
   const askFirst = options.askFirst ?? true;
   const threads = new Map<string, MockThread>();
   const byMessage = new Map<string, { thread: MockThread; turn: MockTurn }>();
 
+  function replyTo(thread: MockThread, content: string): unknown {
+    if (askFirst && thread.turns.length === 0) return mockNeedsInput();
+    if (content.includes("relecture ciblée")) {
+      const refs = [...content.matchAll(/^\[(P\d+\.S\d+)\]/gm)].map((m) => m[1]);
+      return (options.correctionReply ?? (() => ({ status: "corrections", replacements: refs.map((ref) => ({ ref, text: "", sourceIds: [] })) })))(thread.allowedIds, content);
+    }
+    const ready = (options.readyReply ?? mockReadyReply)(thread.allowedIds) as Record<string, unknown>;
+    // Tour allégé : comme le vrai agent, le faux agent omet l'analyse quand le message le demande.
+    if (content.includes('SANS la clé "analysis"')) {
+      return Object.fromEntries(Object.entries(ready).filter(([key]) => key !== "analysis"));
+    }
+    return ready;
+  }
+
   function respond(thread: MockThread, content: string): StartedMessage {
     const messageId = `mock-msg-${crypto.randomUUID()}`;
-    const isFirst = thread.turns.length === 0;
-    const ask = askFirst && isFirst;
-    const text = JSON.stringify(ask ? mockNeedsInput() : (options.readyReply ?? mockReadyReply)(thread.allowedIds));
+    const ask = askFirst && thread.turns.length === 0;
+    const text = JSON.stringify(replyTo(thread, content));
     const reply: ComintyMessage = {
       id: messageId,
       thread_id: thread.id,

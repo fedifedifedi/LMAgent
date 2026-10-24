@@ -159,16 +159,22 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     expect(await db.agentRun.count({ where: { letterId: letter.id, kind: "CORRECTION" } })).toBe(1);
   });
 
-  test("relecture des preuves : un statut non écrit dans le CV déclenche UNE correction, puis lettre propre", async () => {
-    let turn = 0;
+  test("relecture des preuves : un statut non écrit dans le CV déclenche UNE correction ciblée, puis lettre propre", async () => {
+    const corrections: string[] = [];
     const client = createMockComintyClient({
       delayMs: 0,
       askFirst: false,
       readyReply: (allowed) => {
         const reply = mockReadyReply(allowed) as { letter: { paragraphs: Array<{ sentences: Array<{ text: string }> }> } };
-        // 1er tour : statut inventé (« mis en production ») attribué au stage ; 2e tour : version fidèle au CV.
-        if (turn++ === 0) reply.letter.paragraphs[1].sentences[0].text = "Chez Acme Logiciels, j'ai mis en production la refonte du tableau de bord client en React.";
+        // Statut inventé (« mis en production ») attribué au stage.
+        reply.letter.paragraphs[1].sentences[0].text = "Chez Acme Logiciels, j'ai mis en production la refonte du tableau de bord client en React.";
         return reply;
+      },
+      // Correction ciblée : seule la phrase signalée revient, dans sa version fidèle au CV.
+      correctionReply: (allowed, content) => {
+        corrections.push(content);
+        const original = (mockReadyReply(allowed) as { letter: { paragraphs: Array<{ sentences: Array<{ text: string; sourceIds: string[] }> }> } }).letter.paragraphs[1].sentences[0];
+        return { status: "corrections", replacements: [{ ref: "P2.S1", ...original }] };
       },
     });
     const letter = await newLetter();
@@ -176,6 +182,8 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     expect(events.some((e) => e.type === "run")).toBe(true);
     expect(events.at(-1)).toEqual({ type: "done" });
     expect(await db.agentRun.count({ where: { letterId: letter.id, kind: "CORRECTION" } })).toBe(1);
+    expect(corrections[0]).toContain("[P2.S1] « Chez Acme Logiciels, j'ai mis en production");
+    expect(corrections[0]).not.toContain('"analysis"'); // pas de contrat complet : l'agent ne réécrit pas tout
     const view = (await getLetterView(letter.id))!;
     expect(view.status).toBe("GENERATED");
     expect(view.checks).toEqual([]);
