@@ -1,4 +1,5 @@
 import { evidenceContext } from "@/lib/agent/evidence-checks";
+import { completeReview, REVIEW_STEP_KEY, reviewLabel, startReview, type LetterReview } from "@/lib/agent/review";
 import { checkLetter, EVIDENCE_ISSUE_KINDS } from "@/lib/agent/letter-checks";
 import { eventLabel } from "@/lib/agent/agent-labels";
 import {
@@ -56,6 +57,16 @@ const INVALID_AFTER_CORRECTION =
 function stepOf(event: { runId: string; correlationId: number; label: string; status: string; at: Date | string }): TimelineStep {
   const status = event.status === "success" || event.status === "error" ? event.status : "running";
   return { key: `${event.runId}:${event.correlationId}`, label: event.label, status, at: new Date(event.at).toISOString() };
+}
+
+/** Étape « Relecture » à partir de la relecture enregistrée sur la lettre. */
+export function reviewStep(review: LetterReview): TimelineStep {
+  return { key: REVIEW_STEP_KEY, label: reviewLabel(review), status: review.status === "correcting" ? "running" : "success", at: review.at };
+}
+
+async function emitReview(letterId: string, emit: (event: AgentStreamEvent) => void) {
+  const letter = await db.letter.findUnique({ where: { id: letterId }, select: { review: true } });
+  if (letter?.review) emit({ type: "step", step: reviewStep(letter.review as LetterReview) });
 }
 
 /** Étapes de toutes les exécutions d'une lettre, dans l'ordre, une ligne par étape (dernier statut connu). */
@@ -173,6 +184,9 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
     // correction unique de la conversation. La lettre est enregistrée tout de suite (visible si la correction échoue).
     const corrected = await db.agentRun.count({ where: { threadId: run.threadId, kind: "CORRECTION" } });
     const correct = evidenceIssues.length > 0 && corrected === 0 && client.agentId !== REPLAY_AGENT_ID;
+    // Relecture visible : après la correction, chaque phrase d'origine est rapprochée de sa version corrigée.
+    const pending = letter.review as LetterReview | null;
+    const review = run.kind === "CORRECTION" && pending?.status === "correcting" ? completeReview(pending, fields.letter, checks) : startReview(checks, correct ? "correcting" : "reported");
     await db.letter.update({
       where: { id: run.letterId },
       data: {
@@ -183,6 +197,7 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
         generated: Prisma.DbNull,
         insights: json(fields.insights),
         checks: json(checks),
+        review: json(review),
         status: correct ? "DRAFT" : "GENERATED",
         error: null,
       },
@@ -195,7 +210,7 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
     } catch (error) {
       // Correction impossible (plafond, réseau) : la lettre reste, avec ses points à vérifier.
       console.error("Correction des preuves :", error);
-      await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED" } });
+      await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED", review: json({ ...review, status: "reported" }) } });
       return { type: "done" };
     }
   }
@@ -208,7 +223,8 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
     const existing = await db.letter.findUnique({ where: { id: run.letterId }, select: { content: true } });
     if (existing?.content && (await claim({ status: "FAILED", error: diagnosis }))) {
       // La correction des preuves a échoué (format) : la première lettre reste, avec ses points à vérifier.
-      await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED" } });
+      const pending = (await db.letter.findUniqueOrThrow({ where: { id: run.letterId }, select: { review: true } })).review as LetterReview | null;
+      await db.letter.update({ where: { id: run.letterId }, data: { status: "GENERATED", ...(pending ? { review: json({ ...pending, status: "reported" }) } : {}) } });
       return { type: "done" };
     }
     return fail("FAILED", INVALID_AFTER_CORRECTION, diagnosis);
@@ -264,6 +280,8 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
 
     let outcome: Outcome;
     if (run.status !== "RUNNING") {
+      // Rechargement : l'étape « Relecture » est rejouée au même endroit qu'en direct (après les étapes de ce tour).
+      await emitReview(run.letterId, emit);
       outcome = await settledOutcome(run);
     } else {
       outcome = { type: "interrupted" };
@@ -272,6 +290,7 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
         for await (const item of client.stream(run.messageId, { lastEventId: run.lastEventId ?? undefined, signal })) {
           if (item.type === "message") {
             outcome = await finishRun(run, item.message, client);
+            await emitReview(run.letterId, emit);
             break;
           }
           const { event } = item;

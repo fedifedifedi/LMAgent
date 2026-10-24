@@ -326,7 +326,7 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
       </div>
     </header>
 
-    {showTimeline && <AgentTimeline steps={steps} phase={phase} replay={view.agent.replay} />}
+    {showTimeline && <AgentTimeline steps={steps} phase={phase} replay={view.agent.replay} review={view.review} />}
 
     {phase === "questions" && questions && <AgentQuestions questions={questions} busy={answering} error={answerError} onSubmit={(answers) => void answer(answers)} />}
 

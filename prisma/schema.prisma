@@ -100,6 +100,8 @@ model Letter {
   checks    Json?
   /// Sortie de l'agent Cominty hors lettre : { score, scoreReasons, cvAdjustments } (lib/agent/agent-reply.ts).
   insights  Json?
+  /// Relecture des preuves, affichée comme une étape (lib/agent/review.ts) : problèmes trouvés, phrases avant / après.
+  review    Json?
   status    LetterStatus @default(DRAFT)
   /// Dernière erreur (étape en échec), effacée à la reprise.
   error     String?

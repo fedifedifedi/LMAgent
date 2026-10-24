@@ -114,7 +114,8 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     const replay = await follow(runId, client);
     expect(replay.filter((e) => e.type === "step")).toEqual(live.filter((e) => e.type === "step"));
     expect(replay.at(-1)).toEqual({ type: "done" });
-    expect(await db.agentEvent.count({ where: { runId } })).toBe(live.filter((e) => e.type === "step").length);
+    // L'étape « Relecture » vient du code, pas d'un événement Cominty : elle n'est pas stockée en AgentEvent.
+    expect(await db.agentEvent.count({ where: { runId } })).toBe(live.filter((e) => e.type === "step" && e.step.key !== "review:final").length);
   });
 
   test("JSON invalide : une seule correction dans la même conversation, puis lettre", async () => {
@@ -147,6 +148,15 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     const view = (await getLetterView(letter.id))!;
     expect(view.status).toBe("GENERATED");
     expect(view.checks).toEqual([]);
+    // Relecture visible : étape dans la frise (entre les deux tours) et détail avant / après.
+    expect(events.some((e) => e.type === "step" && e.step.key === "review:final" && e.step.status === "running")).toBe(true);
+    expect(view.review?.status).toBe("done");
+    expect(view.review?.changes[0]).toMatchObject({ kind: "status_transferred", outcome: "corrected" });
+    expect(view.review?.changes[0].before).toContain("mis en production");
+    const reviewIndex = view.agent.timeline.findIndex((s) => s.key === "review:final");
+    expect(view.agent.timeline[reviewIndex].label).toBe("Relecture : 1 affirmation sans source corrigée");
+    expect(reviewIndex).toBeGreaterThan(0);
+    expect(reviewIndex).toBeLessThan(view.agent.timeline.length - 1);
   });
 
   test("JSON invalide deux fois : échec reprenable, sans seconde correction", async () => {

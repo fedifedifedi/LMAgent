@@ -61,26 +61,40 @@ const STRONG_FAMILIES: Array<{ label: string; stems: string[] }> = [
 
 const sourceText = (ids: string[], sources: Record<string, string>) => normalize(ids.map((id) => sources[id] ?? "").join(" \n "));
 
-/** n-grammes (2 à 4 mots) qui commencent et finissent par un mot porteur de sens. */
-function phrases(words: string[]): string[] {
-  const out: string[] = [];
+/** Position de chaque mot dans la phrase d'origine (alignée sur les mots normalisés) : extraits lisibles, avec accents. */
+type Shown = (from: number, to: number) => string;
+function shownOf(text: string, count: number): Shown {
+  const spans = [...text.matchAll(/[\p{L}\p{N}]+/gu)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }));
+  if (spans.length !== count) return (from, to) => normalize(text).split(" ").slice(from, to + 1).join(" ");
+  return (from, to) => text.slice(spans[Math.max(0, from)].start, spans[Math.min(spans.length - 1, to)].end);
+}
+
+/** n-grammes (2 à 4 mots) qui commencent et finissent par un mot porteur de sens ; `shown` : l'extrait d'origine. */
+function phrases(words: string[], shown: Shown): Array<{ gram: string; shown: string }> {
+  const out = [];
   for (let n = 2; n <= 4; n++) {
     for (let i = 0; i + n <= words.length; i++) {
       const gram = words.slice(i, i + n);
-      if (isContent(gram[0]) && isContent(gram[n - 1])) out.push(gram.join(" "));
+      if (isContent(gram[0]) && isContent(gram[n - 1])) out.push({ gram: gram.join(" "), shown: shown(i, i + n - 1) });
     }
   }
   return out;
 }
 
+/** Statuts exprimés par un nom après « en » (« mis en production ») : on montre les mots qui précèdent. */
+const NOUN_STATUS = new Set(["production"]);
+
 /** Statut + premier mot porteur de sens qui suit (« livre equipe », « livre pret ») : ce qui distingue deux statuts. */
-function statusKeys(words: string[]): Array<{ stem: string; key: string; phrase: string }> {
+function statusKeys(words: string[], shown: Shown): Array<{ stem: string; key: string; phrase: string }> {
   const keys = [];
   for (let i = 0; i < words.length; i++) {
     const stem = STATUS_STEMS.find((s) => words[i].startsWith(s));
     if (!stem) continue;
-    const next = words.slice(i + 1, i + 5).find(isContent);
-    keys.push({ stem, key: next ? `${stem}…${next}` : stem, phrase: words.slice(i, i + 4).join(" ") });
+    const offset = words.slice(i + 1, i + 5).findIndex(isContent);
+    const next = offset >= 0 ? words[i + 1 + offset] : undefined;
+    // « mis en production » (statut nommé après « en ») ou « livré à l'équipe » (jusqu'au mot porteur de sens suivant).
+    const phrase = NOUN_STATUS.has(stem) ? shown(i - 2, i) : shown(i, offset >= 0 ? i + 1 + offset : i);
+    keys.push({ stem, key: next ? `${stem}…${next}` : stem, phrase });
   }
   return keys;
 }
@@ -112,22 +126,24 @@ export function checkEvidence(letter: LetterContent, context: EvidenceContext): 
       // Réponses du candidat : leur texte n'est pas un élément du profil, on ne peut pas les comparer.
       if (sentence.sourceIds.length === 0 || sentence.sourceIds.includes("candidate-answers")) continue;
       const words = tokens(sentence.text);
+      const shown = shownOf(sentence.text, words.length);
       const cited = sourceText(sentence.sourceIds, context.sources);
 
       // 1. Terme repris de l'offre : présent dans l'offre, absent des sources citées, avec un mot inconnu du profil.
-      for (const gram of phrases(words)) {
+      for (const { gram, shown: label } of phrases(words, shown)) {
         if (!contains(offer, gram) || contains(cited, gram) || contains(identity, gram)) continue;
         if (gram.split(" ").filter(isContent).some((w) => !contains(profile, w))) {
-          push({ kind: "offer_term_unsourced", message: `« ${gram} » vient de l'offre, pas du CV : ce terme n'apparaît pas dans la source citée (${citedLabel(sentence.sourceIds)}).` });
+          push({ kind: "offer_term_unsourced", sentence: sentence.text, message: `« ${label} » vient de l'offre, pas du CV : ce terme n'apparaît pas dans la source citée (${citedLabel(sentence.sourceIds)}).` });
         }
       }
 
       // 2. Statut transféré : le statut de la phrase n'est pas celui de la source citée.
-      for (const status of statusKeys(words)) {
+      for (const status of statusKeys(words, shown)) {
         if (hasStatus(cited, status.stem, status.key)) continue;
         const elsewhere = Object.entries(context.sources).find(([id, text]) => !sentence.sourceIds.includes(id) && hasStatus(normalize(text), status.stem, status.key));
         push({
           kind: "status_transferred",
+          sentence: sentence.text,
           message: elsewhere
             ? `« ${status.phrase} » est le statut de ${labelOf(elsewhere[0])}, pas de ${citedLabel(sentence.sourceIds)} : ne transfère pas un statut d'une expérience à une autre.`
             : `« ${status.phrase} » : ce statut n'est pas écrit dans le CV pour ${citedLabel(sentence.sourceIds)}.`,
@@ -136,9 +152,10 @@ export function checkEvidence(letter: LetterContent, context: EvidenceContext): 
 
       // 3. Verbe plus fort que le CV : la famille du verbe doit être présente dans la source citée.
       for (const family of STRONG_FAMILIES) {
-        const used = words.find((w) => family.stems.includes(w));
-        if (used && !family.stems.some((stem) => cited.split(" ").includes(stem))) {
-          push({ kind: "verb_inflated", message: `« ${used} » est plus fort que ce que dit le CV pour ${citedLabel(sentence.sourceIds)} (famille « ${family.label} » absente) : reprends le verbe du CV.` });
+        const at = words.findIndex((w) => family.stems.includes(w));
+        if (at >= 0 && !family.stems.some((stem) => cited.split(" ").includes(stem))) {
+          const used = shown(at, at);
+          push({ kind: "verb_inflated", sentence: sentence.text, message: `« ${used} » est plus fort que ce que dit le CV pour ${citedLabel(sentence.sourceIds)} (famille « ${family.label} » absente) : reprends le verbe du CV.` });
         }
       }
     }

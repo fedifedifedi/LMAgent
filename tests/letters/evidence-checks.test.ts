@@ -44,7 +44,7 @@ describe("relecture des preuves (cas Nexora Labs)", () => {
   test("terme repris de l'offre sans source dans le CV : « découpage des documents »", () => {
     const issues = checkEvidence(letterOf([["Chez Wind Consulting et sur DocBot, j'ai travaillé sur le découpage des documents.", ["exp-wind-2026", "proj-docbot"]]]), context);
     expect(issues.map((i) => i.kind)).toContain("offer_term_unsourced");
-    expect(issues.find((i) => i.kind === "offer_term_unsourced")?.message).toContain("decoupage des documents");
+    expect(issues.find((i) => i.kind === "offer_term_unsourced")?.message).toContain("« découpage des documents »");
   });
 
   test("statut transféré : « livré à l'équipe » est le statut de Wind Consulting, pas de Talan", () => {
@@ -52,6 +52,7 @@ describe("relecture des preuves (cas Nexora Labs)", () => {
     const issue = issues.find((i) => i.kind === "status_transferred");
     expect(issue?.message).toContain("Wind Consulting");
     expect(issue?.message).toContain("Talan");
+    expect(issue?.message).toContain("« livré à l'équipe »");
   });
 
   test("le bon statut de Talan (« livré prêt à l'emploi ») n'est pas signalé", () => {
@@ -68,9 +69,9 @@ describe("relecture des preuves (cas Nexora Labs)", () => {
       context,
     );
     const inflated = issues.filter((i) => i.kind === "verb_inflated").map((i) => i.message);
-    expect(inflated.some((m) => m.includes("« concu »"))).toBe(true);
+    expect(inflated.some((m) => m.includes("« conçu »"))).toBe(true);
     expect(inflated.some((m) => m.includes("« garanties »"))).toBe(true);
-    expect(inflated.some((m) => m.includes("« operationnelle »"))).toBe(true);
+    expect(inflated.some((m) => m.includes("« opérationnelle »"))).toBe(true);
   });
 
   test("lettre fidèle au CV : aucun problème", () => {

@@ -16,6 +16,8 @@ export type LetterIssue = {
     | "status_transferred"
     | "verb_inflated";
   message: string;
+  /** Phrase de la lettre concernée (relecture visible : avant / après). */
+  sentence?: string;
 };
 
 /** Problèmes de preuve : ils déclenchent la correction (unique) demandée à l'agent. */
@@ -56,9 +58,11 @@ export function checkLetter(letter: LetterContent, context: { analysis: OfferAna
   }
 
   const text = `${letter.subject}\n${letterText(letter)}`;
+  const sentences = letter.paragraphs.flatMap((p) => p.sentences.map((s) => s.text));
   for (const requirement of context.match.requirements) {
     if (requirement.status === "missing" && mentions(text, requirement.name)) {
-      issues.push({ kind: "claims_missing_skill", message: `La lettre mentionne « ${requirement.name} », absent du profil.` });
+      const sentence = sentences.find((s) => mentions(s, requirement.name));
+      issues.push({ kind: "claims_missing_skill", message: `La lettre mentionne « ${requirement.name} », absent du profil.`, ...(sentence ? { sentence } : {}) });
     }
   }
 

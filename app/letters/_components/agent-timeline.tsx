@@ -1,5 +1,6 @@
 "use client";
 
+import { REVIEW_STEP_KEY, type LetterReview } from "@/lib/agent/review";
 import type { TimelineStep } from "@/lib/letters/agent-run";
 
 export type AgentPhase = "idle" | "running" | "questions" | "done" | "failed";
@@ -19,7 +20,7 @@ function elapsed(from: string, at: string) {
 }
 
 /** Étapes de l'agent Cominty en direct : une ligne par étape, mise à jour au fil du flux. */
-export function AgentTimeline({ steps, phase, replay = false }: { steps: TimelineStep[]; phase: AgentPhase; replay?: boolean }) {
+export function AgentTimeline({ steps, phase, replay = false, review = null }: { steps: TimelineStep[]; phase: AgentPhase; replay?: boolean; review?: LetterReview | null }) {
   // Origine des durées : l'horodatage le plus ancien (ceux de Cominty ne suivent pas l'ordre des étapes).
   const first = steps.reduce<string | undefined>((min, step) => (!min || step.at < min ? step.at : min), undefined);
   return (
@@ -55,13 +56,17 @@ export function AgentTimeline({ steps, phase, replay = false }: { steps: Timelin
         <ol className="flex max-h-72 flex-col gap-2 overflow-auto text-sm" data-lenis-prevent aria-live="polite">
           {steps.map((step, index) => {
             // Clé « runId:correlationId » : un nouveau tour de l'agent (réponse, correction) commence quand le runId change.
+            // L'étape « Relecture » (vérification par le code) ne compte pas comme un tour de l'agent.
+            const isReview = step.key === REVIEW_STEP_KEY;
             const runOf = (key: string) => key.slice(0, key.lastIndexOf(":"));
-            const newRound = index > 0 && runOf(step.key) !== runOf(steps[index - 1].key);
-            const round = new Set(steps.slice(0, index + 1).map((s) => runOf(s.key))).size;
+            const agentSteps = steps.slice(0, index + 1).filter((s) => s.key !== REVIEW_STEP_KEY);
+            const previous = steps.slice(0, index).filter((s) => s.key !== REVIEW_STEP_KEY).at(-1);
+            const newRound = !isReview && previous !== undefined && runOf(step.key) !== runOf(previous.key);
+            const round = new Set(agentSteps.map((s) => runOf(s.key))).size;
             return (
               <li key={step.key} className="flex flex-col gap-2" aria-current={step.status === "running" ? "step" : undefined}>
                 {newRound && <span className="mt-1 border-t pt-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">Tour {round} de l&apos;agent</span>}
-                <span className="flex items-center gap-2">
+                <span className={`flex items-center gap-2 ${isReview ? "rounded-md bg-accent px-2 py-1 font-medium" : ""}`}>
                   <StepIcon status={step.status} />
                   <span className={step.status === "running" ? "italic" : step.status === "error" ? "text-destructive" : ""}>{step.label}</span>
                   <span className="ml-auto text-xs text-muted-foreground tabular-nums">{first ? elapsed(first, step.at) : ""}</span>
@@ -71,7 +76,51 @@ export function AgentTimeline({ steps, phase, replay = false }: { steps: Timelin
           })}
         </ol>
       )}
+      {review && review.changes.length > 0 && <ReviewDetails review={review} />}
     </section>
+  );
+}
+
+const OUTCOME_LABEL = { pending: "en cours", corrected: "corrigée", removed: "retirée", unchanged: "à vérifier" } as const;
+
+/** Détail de la relecture : pour chaque affirmation, la phrase avant, la phrase après et la raison. */
+function ReviewDetails({ review }: { review: LetterReview }) {
+  // Une entrée par phrase, avec toutes ses raisons (une phrase peut cumuler un statut et un verbe renforcés).
+  const bySentence = [...new Map(review.changes.map((c) => [c.before, review.changes.filter((o) => o.before === c.before)])).values()].map((group) => ({ ...group[0], reasons: group.map((g) => g.reason) }));
+  return (
+    <details className="rounded-md border bg-background/60 px-3 py-2 text-sm">
+      <summary className="cursor-pointer font-medium">
+        Voir le détail de la relecture ({bySentence.length} phrase{bySentence.length > 1 ? "s" : ""})
+      </summary>
+      <ol className="mt-3 flex flex-col gap-4">
+        {bySentence.map((change, index) => (
+          <li key={`${index}-${change.before}`} className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+              Phrase {index + 1} · {OUTCOME_LABEL[change.outcome]}
+            </span>
+            <p className="rounded bg-destructive/10 px-2 py-1 text-destructive line-through decoration-1">
+              <span className="sr-only">Avant : </span>
+              {change.before}
+            </p>
+            {change.outcome === "removed" ? (
+              <p className="px-2 text-muted-foreground italic">Phrase retirée de la lettre.</p>
+            ) : (
+              change.after && (
+                <p className="rounded bg-primary/10 px-2 py-1">
+                  <span className="sr-only">Après : </span>
+                  {change.after}
+                </p>
+              )
+            )}
+            <ul className="px-2 text-xs text-muted-foreground">
+              {change.reasons.map((reason) => (
+                <li key={reason}>Raison : {reason}</li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }
 

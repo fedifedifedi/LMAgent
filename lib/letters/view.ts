@@ -3,7 +3,8 @@ import type { LetterIssue } from "@/lib/agent/letter-checks";
 import { REPLAY_PREFIX } from "@/lib/cominty/replay-client";
 import { companyLocation } from "@/lib/letters/text";
 import type { ComintyQuestion } from "@/lib/cominty/schemas";
-import { EVENT_ORDER, timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
+import type { LetterReview } from "@/lib/agent/review";
+import { EVENT_ORDER, reviewStep, timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
 import type { Critique, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
 import type { StoredLetter } from "@/lib/letters/stored";
 import { DEFAULT_TEMPLATE, isLetterTemplate, type LetterTemplate } from "@/lib/letters/templates";
@@ -69,7 +70,17 @@ export type LetterView = {
   agent: AgentState;
   /** Score, raisons et ajustements du CV proposés par l'agent (lettres générées par Cominty). */
   insights: AgentInsights | null;
+  /** Relecture des preuves (étape visible, phrases avant / après). */
+  review: LetterReview | null;
 };
+
+/** Étape « Relecture » placée après le premier tour, juste avant la correction (même ordre qu'en direct). */
+function withReviewStep(steps: TimelineStep[], review: LetterReview | null, correctionRunId: string | undefined): TimelineStep[] {
+  if (!review) return steps;
+  const step = reviewStep(review);
+  const index = correctionRunId ? steps.findIndex((s) => s.key.startsWith(`${correctionRunId}:`)) : -1;
+  return index < 0 ? [...steps, step] : [...steps.slice(0, index), step, ...steps.slice(index)];
+}
 
 function formatDate(date: Date, language: "fr" | "en") {
   return date.toLocaleDateString(language === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -135,10 +146,15 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
       activeRunId: letter.agentRuns.find((run) => run.status === "RUNNING")?.id ?? null,
       lastRunId: lastRun?.id ?? null,
       questions: letter.status === "NEEDS_INPUT" && lastRun?.questions ? (lastRun.questions as ComintyQuestion[]) : null,
-      timeline: timelineOf(letter.agentRuns.flatMap((run) => run.events)),
+      timeline: withReviewStep(
+        timelineOf(letter.agentRuns.flatMap((run) => run.events)),
+        (letter.review as LetterReview | null) ?? null,
+        letter.agentRuns.find((run) => run.kind === "CORRECTION")?.id,
+      ),
       replay: letter.agentRuns.some((run) => run.messageId.startsWith(REPLAY_PREFIX)),
     },
     insights: (letter.insights as AgentInsights | null) ?? null,
+    review: (letter.review as LetterReview | null) ?? null,
   };
 }
 
