@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { evidenceContext } from "@/lib/agent/evidence-checks";
+import { AnswersSchema } from "@/lib/agent/questions";
 import { checkLetter } from "@/lib/agent/letter-checks";
 import { ProfileSchema } from "@/lib/schemas/profile";
 import { OfferAnalysisSchema, type ProfileMatch } from "@/lib/agent/schemas";
@@ -164,14 +165,14 @@ export async function startAgentRunAction(letterId: unknown): Promise<RunResult>
   }
 }
 
-const AnswersSchema = z.array(z.object({ prompt: z.string().max(1000), answer: z.string().max(2000) })).min(1).max(5);
 
 /** Réponses du candidat aux questions de l'agent (boutons ou texte libre). */
 export async function answerAgentAction(letterId: unknown, answers: unknown): Promise<RunResult> {
   const id = z.string().min(1).safeParse(letterId);
+  // Même validation que le serveur de l'agent : « Oui » exige une précision, 3 réponses au plus.
   const parsed = AnswersSchema.safeParse(answers);
   if (!id.success) return { error: "Lettre introuvable." };
-  if (!parsed.success) return { error: "Réponse invalide." };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Réponse invalide." };
   try {
     const access = await requestHasAccess();
     const runId = await answerAgentRun(id.data, parsed.data, (messageId) => {

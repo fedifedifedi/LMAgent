@@ -2,6 +2,7 @@ import { z } from "zod";
 import { EVIDENCE_RULES } from "@/lib/agent/evidence-rules";
 import { extractJsonText } from "@/lib/cominty/json";
 import { normalizeLetterText } from "@/lib/letters/text";
+import { answerSources, type CandidateAnswer } from "@/lib/agent/questions";
 import { letterSchema, OfferAnalysisSchema, type LetterContent, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
 import { buildSourceCatalog, sourceIds } from "@/lib/agent/sources";
 import type { Profile } from "@/lib/schemas/profile";
@@ -16,13 +17,15 @@ export const CANDIDATE_ANSWERS_SOURCE = "candidate-answers";
 export const CANDIDATE_ANSWERS_LABEL = "Tes réponses à l'agent";
 
 /** Ids citables par l'agent : catalogue du profil + réponses du candidat. */
-export function agentSourceIds(profile: Profile): [string, ...string[]] {
-  return [...sourceIds(buildSourceCatalog(profile)), CANDIDATE_ANSWERS_SOURCE];
+/** answers : réponses « Oui » déjà données dans la conversation (sources candidate-answer-N). */
+export function agentSourceIds(profile: Profile, answers: CandidateAnswer[] = []): [string, ...string[]] {
+  return [...sourceIds(buildSourceCatalog(profile)), ...answerSources(answers).map((s) => s.id), CANDIDATE_ANSWERS_SOURCE];
 }
 
 const normalize = (name: string) => name.trim().toLocaleLowerCase("fr");
 
-const NeedsInputSchema = z.object({ status: z.literal("needs_input") });
+/** En attente de réponses : l'analyse et les manques peuvent accompagner les questions (affichés pendant l'attente). */
+const NeedsInputSchema = z.object({ status: z.literal("needs_input") }).passthrough();
 
 export function agentReplySchema(ids: [string, ...string[]]) {
   return z.union([NeedsInputSchema, readyReplySchema(ids)]);
@@ -170,7 +173,7 @@ Règles :
 - Chaque phrase qui affirme un fait sur le candidat cite au moins un id autorisé ; une phrase sur l'entreprise ou l'offre n'en cite aucun. Jamais "profile-summary" comme preuve d'un projet précis.
 - Si l'offre nomme un contact, la formule d'appel s'adresse à cette personne. Un manque n'est jamais présenté comme une compétence acquise.
 - analysis, scoreReasons, strengths, gaps et cvAdjustments en français ; la lettre dans la langue de l'offre.
-Si une information indispensable manque : pose tes questions avec la fonction de questions native de Cominty et réponds exactement {"status":"needs_input"}.`;
+Questions au candidat (AVANT d'écrire la lettre) : compare chaque exigence de l'offre au profil. Pour chaque exigence que le profil ne prouve pas — d'abord les obligatoires (required), puis les appréciées (preferred) — pose une question avec la fonction de questions native de Cominty, au plus 3 en tout, une par exigence, en nommant l'exigence (« As-tu déjà utilisé Kubernetes ? Si oui, dans quel projet ou quelle expérience ? »). Réponds alors seulement {"status":"needs_input","analysis":{… comme ci-dessus},"gaps":[{"requirement":"nom exact","importance":"required|preferred"}]}, SANS lettre. Si le profil prouve toutes les exigences, écris directement l'objet "ready".`;
 
 /** Premier message : en-tête « LMAgent », profil validé (seule source de faits), ids autorisés, offre, contrat de sortie. */
 export function agentLetterMessage(profile: Profile, offerText: string): string {
@@ -184,15 +187,25 @@ export function agentLetterMessage(profile: Profile, offerText: string): string 
   ].join("\n\n");
 }
 
-export type CandidateAnswer = { prompt: string; answer: string };
-
-/** Réponses du candidat aux questions natives de l'agent. */
+/**
+ * Réponses du candidat : chaque « Oui » devient une source à citer (candidate-answer-N) ; « Non », « Passer » et
+ * « souhaite l'apprendre » interdisent de présenter la compétence comme acquise.
+ */
 export function agentAnswersMessage(answers: CandidateAnswer[]): string {
-  const lines = answers.map((a) => `- Question : ${a.prompt}\n  Réponse : ${a.answer}`);
+  const sources = answerSources(answers);
+  let yes = 0;
+  const lines = answers.map((a) => {
+    const name = a.requirement ?? a.prompt;
+    if (a.choice === "yes") return `- ${name} : OUI — « ${a.detail} » → source ${sources[yes++].id} (cite-la pour ce fait, avec ses mots, sans rien ajouter).`;
+    if (a.choice === "learn") return `- ${name} : NON, mais le candidat souhaite l'apprendre → mentionne-la au plus comme une envie d'apprendre, jamais comme acquise.`;
+    return `- ${name} : ${a.choice === "no" ? "NON" : "PAS DE RÉPONSE"} → ne mentionne pas cette compétence dans la lettre.`;
+  });
   return [
-    `LMAgent — réponses du candidat (source ${CANDIDATE_ANSWERS_SOURCE}) :`,
+    "LMAgent — réponses du candidat à tes questions :",
     lines.join("\n"),
-    `Réponds maintenant avec l'objet JSON complet (status "ready"), au format du premier message. Cite "${CANDIDATE_ANSWERS_SOURCE}" pour les faits tirés de ces réponses.`,
+    `Ids de sources autorisés : ${[...new Set([...sources.map((s) => s.id)])].join(", ") || "aucun nouveau"} (en plus de ceux du premier message).`,
+    EVIDENCE_RULES,
+    'Écris maintenant l\'objet JSON complet (status "ready"), au format du premier message. Ne pose plus de question.',
   ].join("\n\n");
 }
 

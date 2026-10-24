@@ -43,11 +43,17 @@ export function mentions(text: string, term: string): boolean {
   return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(cleaned)}(?![\\p{L}\\p{N}])`, "iu").test(text);
 }
 
+/** Formulations d'apprentissage : seule façon de citer une compétence que le candidat souhaite apprendre. */
+const LEARNING = /apprendre|me former|monter en comp[ée]tences?|d[ée]couvrir|learn/i;
+
 /**
  * Vérifications déterministes, en plus de la critique du modèle : longueur, langue, compétences absentes du profil
  * revendiquées, formule d'appel quand l'offre nomme un contact.
  */
-export function checkLetter(letter: LetterContent, context: { analysis: OfferAnalysis; match: ProfileMatch; evidence?: EvidenceContext }): LetterIssue[] {
+export function checkLetter(
+  letter: LetterContent,
+  context: { analysis: OfferAnalysis; match: ProfileMatch; evidence?: EvidenceContext; learning?: string[] },
+): LetterIssue[] {
   const issues: LetterIssue[] = [];
   const count = letterWordCount(letter);
   if (count > MAX_WORDS) issues.push({ kind: "too_long", message: `La lettre fait ${count} mots : au-delà de ${MAX_WORDS}, elle risque de dépasser une page.` });
@@ -61,7 +67,11 @@ export function checkLetter(letter: LetterContent, context: { analysis: OfferAna
   const sentences = letter.paragraphs.flatMap((p) => p.sentences.map((s) => s.text));
   for (const requirement of context.match.requirements) {
     if (requirement.status === "missing" && mentions(text, requirement.name)) {
-      const sentence = sentences.find((s) => mentions(s, requirement.name));
+      // « Non, mais je souhaite l'apprendre » : la mention n'est permise que dans une phrase d'apprentissage.
+      const learnable = context.learning?.some((name) => name.toLocaleLowerCase("fr") === requirement.name.toLocaleLowerCase("fr"));
+      const claiming = sentences.filter((s) => mentions(s, requirement.name) && !(learnable && LEARNING.test(s)));
+      if (claiming.length === 0 && !mentions(letter.subject, requirement.name)) continue;
+      const sentence = claiming[0];
       issues.push({ kind: "claims_missing_skill", message: `La lettre mentionne « ${requirement.name} », absent du profil.`, ...(sentence ? { sentence } : {}) });
     }
   }

@@ -2,7 +2,7 @@ import { CANDIDATE_ANSWERS_LABEL, CANDIDATE_ANSWERS_SOURCE, type AgentInsights }
 import type { LetterIssue } from "@/lib/agent/letter-checks";
 import { REPLAY_PREFIX } from "@/lib/cominty/replay-client";
 import { companyLocation } from "@/lib/letters/text";
-import type { ComintyQuestion } from "@/lib/cominty/schemas";
+import { answerSources, type AgentQuestion, type CandidateAnswer } from "@/lib/agent/questions";
 import type { LetterReview } from "@/lib/agent/review";
 import { EVENT_ORDER, reviewStep, timelineOf, type TimelineStep } from "@/lib/letters/agent-run";
 import type { Critique, OfferAnalysis, ProfileMatch } from "@/lib/agent/schemas";
@@ -37,7 +37,7 @@ export type AgentState = {
   activeRunId: string | null;
   /** Dernière exécution, pour réafficher son état final. */
   lastRunId: string | null;
-  questions: ComintyQuestion[] | null;
+  questions: AgentQuestion[] | null;
   timeline: TimelineStep[];
   /** Démo sans code d'accès : rejeu d'un vrai run enregistré, sans aucun appel. */
   replay: boolean;
@@ -130,7 +130,12 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
         .map((line) => (language === "en" && line.startsWith("À l'attention de ") ? line.replace("À l'attention de ", "For the attention of ") : line)),
       placeAndDate: language === "fr" ? `${city ? `${city}, le ` : "Le "}${date}` : city ? `${city}, ${date}` : date,
     },
-    sources: { ...Object.fromEntries(buildSourceCatalog(profile).map((entry) => [entry.id, entry.label])), [CANDIDATE_ANSWERS_SOURCE]: CANDIDATE_ANSWERS_LABEL },
+    sources: {
+      ...Object.fromEntries(buildSourceCatalog(profile).map((entry) => [entry.id, entry.label])),
+      [CANDIDATE_ANSWERS_SOURCE]: CANDIDATE_ANSWERS_LABEL,
+      // « Réponse du candidat : Kubernetes » pour chaque réponse « Oui » (candidate-answer-N).
+      ...Object.fromEntries(answerSources(letter.agentRuns.filter((run) => run.kind === "ANSWER").flatMap((run) => (run.answers as CandidateAnswer[] | null) ?? [])).map((s) => [s.id, s.label])),
+    },
     highlightTerms: (match?.requirements ?? []).filter((r) => r.status !== "missing").map((r) => r.name),
     usage: letter.llmCalls.map((c) => ({
       step: c.step,
@@ -145,7 +150,7 @@ export async function getLetterView(id: string): Promise<LetterView | null> {
     agent: {
       activeRunId: letter.agentRuns.find((run) => run.status === "RUNNING")?.id ?? null,
       lastRunId: lastRun?.id ?? null,
-      questions: letter.status === "NEEDS_INPUT" && lastRun?.questions ? (lastRun.questions as ComintyQuestion[]) : null,
+      questions: letter.status === "NEEDS_INPUT" && lastRun?.questions ? (lastRun.questions as AgentQuestion[]) : null,
       timeline: withReviewStep(
         timelineOf(letter.agentRuns.flatMap((run) => run.events)),
         (letter.review as LetterReview | null) ?? null,

@@ -1,5 +1,6 @@
 import type { LetterIssue } from "@/lib/agent/letter-checks";
 import type { LetterContent, OfferAnalysis } from "@/lib/agent/schemas";
+import { answerSources, type CandidateAnswer } from "@/lib/agent/questions";
 import { buildSourceCatalog } from "@/lib/agent/sources";
 import type { Profile } from "@/lib/schemas/profile";
 
@@ -163,12 +164,18 @@ export function checkEvidence(letter: LetterContent, context: EvidenceContext): 
   return issues;
 }
 
-/** Contexte de relecture à partir du profil validé et du texte de l'offre. */
-export function evidenceContext(profile: Profile, offerText: string): EvidenceContext {
-  const catalog = buildSourceCatalog(profile);
+/**
+ * Contexte de relecture à partir du profil validé, du texte de l'offre et des réponses « Oui » du candidat (sources
+ * candidate-answer-N, vérifiées comme un élément du CV : pas de verbe renforcé ni de statut ajouté).
+ */
+export function evidenceContext(profile: Profile, offerText: string, answers: CandidateAnswer[] = []): EvidenceContext {
+  const entries = [
+    ...buildSourceCatalog(profile).map((entry) => ({ id: entry.id, label: entry.label, text: JSON.stringify(entry.content ?? "") })),
+    ...answerSources(answers),
+  ];
   return {
     offerText,
-    sources: Object.fromEntries(catalog.map((entry) => [entry.id, JSON.stringify(entry.content ?? "")])),
-    labels: Object.fromEntries(catalog.map((entry) => [entry.id, entry.label])),
+    sources: Object.fromEntries(entries.map((entry) => [entry.id, entry.text])),
+    labels: Object.fromEntries(entries.map((entry) => [entry.id, entry.label])),
   };
 }

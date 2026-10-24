@@ -1,4 +1,7 @@
 import { evidenceContext } from "@/lib/agent/evidence-checks";
+import { AnswersSchema, notAcquired, standardizeQuestions, toLearn, type CandidateAnswer } from "@/lib/agent/questions";
+import { OfferAnalysisSchema, type OfferAnalysis, type ProfileMatch } from "@/lib/agent/schemas";
+import { extractJsonText } from "@/lib/cominty/json";
 import { completeReview, REVIEW_STEP_KEY, reviewLabel, startReview, type LetterReview } from "@/lib/agent/review";
 import { checkLetter, EVIDENCE_ISSUE_KINDS } from "@/lib/agent/letter-checks";
 import { eventLabel } from "@/lib/agent/agent-labels";
@@ -10,7 +13,6 @@ import {
   agentSourceIds,
   parseAgentReply,
   toLetterFields,
-  type CandidateAnswer,
 } from "@/lib/agent/agent-reply";
 import { ComintyError, ComintyStreamError } from "@/lib/cominty/errors";
 import { REPLAY_AGENT_ID } from "@/lib/cominty/replay-client";
@@ -59,6 +61,28 @@ function stepOf(event: { runId: string; correlationId: number; label: string; st
   return { key: `${event.runId}:${event.correlationId}`, label: event.label, status, at: new Date(event.at).toISOString() };
 }
 
+/** Réponses du candidat données dans la conversation (tours ANSWER), dans l'ordre. */
+async function threadAnswers(threadId: string): Promise<CandidateAnswer[]> {
+  const runs = await db.agentRun.findMany({ where: { threadId, kind: "ANSWER" }, orderBy: { createdAt: "asc" }, select: { answers: true } });
+  return runs.flatMap((r) => (r.answers as CandidateAnswer[] | null) ?? []);
+}
+
+/** Analyse jointe à une réponse « needs_input » (facultative, ignorée si elle ne respecte pas le schéma). */
+function analysisFrom(content: string): OfferAnalysis | undefined {
+  try {
+    const parsed = OfferAnalysisSchema.safeParse((JSON.parse(extractJsonText(content)) as { analysis?: unknown }).analysis);
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Les exigences répondues « Non », « Passer » ou « souhaite l'apprendre » restent « absentes du profil ». */
+function withAnswers(match: ProfileMatch, answers: CandidateAnswer[]): ProfileMatch {
+  const absent = new Set(notAcquired(answers).map((name) => name.toLocaleLowerCase("fr")));
+  return { ...match, requirements: match.requirements.map((r) => (absent.has(r.name.toLocaleLowerCase("fr")) ? { ...r, status: "missing" as const, evidence: "", sourceIds: [] } : r)) };
+}
+
 /** Étape « Relecture » à partir de la relecture enregistrée sur la lettre. */
 export function reviewStep(review: LetterReview): TimelineStep {
   return { key: REVIEW_STEP_KEY, label: reviewLabel(review), status: review.status === "correcting" ? "running" : "success", at: review.at };
@@ -102,12 +126,12 @@ const resolveClient = async (client: ClientFor, messageId: string) => (typeof cl
 export async function answerAgentRun(letterId: string, answers: CandidateAnswer[], clientFor: ClientFor): Promise<string> {
   const last = await db.agentRun.findFirst({ where: { letterId }, orderBy: { createdAt: "desc" } });
   if (!last || last.status !== "SUCCESS" || !last.questions) throw new AgentRunError("L'agent n'attend pas de réponse pour cette lettre.");
-  const cleaned = answers.map((a) => ({ prompt: a.prompt.trim(), answer: a.answer.trim() })).filter((a) => a.answer);
-  if (cleaned.length === 0) throw new AgentRunError("Choisis ou écris au moins une réponse.");
+  const parsedAnswers = AnswersSchema.safeParse(answers);
+  if (!parsedAnswers.success) throw new AgentRunError(parsedAnswers.error.issues[0]?.message ?? "Réponse invalide.");
 
   const client = await resolveClient(clientFor, last.messageId);
-  const started = await client.sendMessage(last.threadId, agentAnswersMessage(cleaned));
-  const run = await db.agentRun.create({ data: { letterId, threadId: started.threadId, messageId: started.messageId, kind: "ANSWER" } });
+  const started = await client.sendMessage(last.threadId, agentAnswersMessage(parsedAnswers.data));
+  const run = await db.agentRun.create({ data: { letterId, threadId: started.threadId, messageId: started.messageId, kind: "ANSWER", answers: json(parsedAnswers.data) } });
   await db.letter.update({ where: { id: letterId }, data: { status: "DRAFT", error: null } });
   return run.id;
 }
@@ -164,21 +188,31 @@ async function finishRun(run: AgentRun, message: ComintyMessage, client: AgentCl
   }
 
   if (message.questions?.length) {
-    if (!(await claim({ status: "SUCCESS", questions: json(message.questions) }))) return { type: "run", runId: run.id };
-    await db.letter.update({ where: { id: run.letterId }, data: { status: "NEEDS_INPUT", error: null } });
-    return { type: "questions", questions: message.questions };
+    // Questions natives de l'agent, standardisées par le code (3 au plus, obligatoires d'abord, 4 boutons).
+    // L'analyse jointe est enregistrée tout de suite : la carte « Offre analysée » s'affiche pendant l'attente.
+    const analysis = analysisFrom(message.content);
+    const questions = standardizeQuestions(message.questions, analysis?.requirements);
+    if (!(await claim({ status: "SUCCESS", questions: json(questions) }))) return { type: "run", runId: run.id };
+    await db.letter.update({
+      where: { id: run.letterId },
+      data: { status: "NEEDS_INPUT", error: null, ...(analysis ? { analysis: json(analysis), language: analysis.language } : {}) },
+    });
+    return { type: "questions", questions };
   }
 
   const letter = await db.letter.findUniqueOrThrow({ where: { id: run.letterId }, include: { profile: true } });
-  const ids = agentSourceIds(ProfileSchema.parse(letter.profile.data));
+  const answers = await threadAnswers(run.threadId);
+  const ids = agentSourceIds(ProfileSchema.parse(letter.profile.data), answers);
   const parsed = parseAgentReply(message.content, ids);
   const issues = !parsed.ok ? parsed.issues : parsed.reply.status === "needs_input" ? 'status "needs_input" requires native Cominty questions; ask them, or answer with status "ready".' : undefined;
 
   if (parsed.ok && parsed.reply.status === "ready") {
     if (!(await claim({ status: "SUCCESS" }))) return { type: "run", runId: run.id };
     const fields = toLetterFields(parsed.reply);
-    const evidence = evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText);
-    const checks = checkLetter(fields.letter, { analysis: fields.analysis, match: fields.match, evidence });
+    // Réponses « Non » / « Passer » / « souhaite l'apprendre » : la compétence reste absente, quoi que dise l'agent.
+    fields.match = withAnswers(fields.match, answers);
+    const evidence = evidenceContext(ProfileSchema.parse(letter.profile.data), letter.offerText, answers);
+    const checks = checkLetter(fields.letter, { analysis: fields.analysis, match: fields.match, evidence, learning: toLearn(answers) });
     const evidenceIssues = checks.filter((check) => EVIDENCE_ISSUE_KINDS.has(check.kind));
     // Relecture critique : un problème de preuve (terme de l'offre, statut transféré, verbe renforcé) déclenche la
     // correction unique de la conversation. La lettre est enregistrée tout de suite (visible si la correction échoue).

@@ -208,6 +208,8 @@ model AgentRun {
   status      AgentRunStatus @default(RUNNING)
   /// Questions natives de Cominty ({ prompt, options }[]) quand l'agent attend une réponse.
   questions   Json?
+  /// Réponses du candidat envoyées par ce tour (ANSWER) : { prompt, requirement, choice, detail }[] (lib/agent/questions.ts).
+  answers     Json?
   /// Dernier événement reçu : reprise du flux sans relancer l'agent.
   lastEventId String?
   error       String?

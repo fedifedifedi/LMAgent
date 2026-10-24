@@ -14,7 +14,7 @@ import {
   setLetterTemplateAction,
   startAgentRunAction,
 } from "@/app/letters/actions";
-import { AgentQuestions, type QuestionAnswer } from "@/app/letters/_components/agent-questions";
+import { AgentQuestions } from "@/app/letters/_components/agent-questions";
 import { AgentTimeline, type AgentPhase } from "@/app/letters/_components/agent-timeline";
 import { DeleteLetter } from "@/app/letters/_components/delete-letter";
 import { LetterEditor } from "@/app/letters/_components/letter-editor";
@@ -27,7 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { letterWordCount } from "@/lib/agent/letter-checks";
-import type { ComintyQuestion } from "@/lib/cominty/schemas";
+import type { AgentQuestion, CandidateAnswer } from "@/lib/agent/questions";
 import type { AgentStreamEvent, TimelineStep } from "@/lib/letters/agent-run";
 import type { LetterView } from "@/lib/letters/view";
 
@@ -80,7 +80,7 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
   const [view, setView] = useState(initial);
   const [phase, setPhase] = useState<AgentPhase>(() => initialPhase(initial));
   const [steps, setSteps] = useState<TimelineStep[]>(initial.agent.timeline);
-  const [questions, setQuestions] = useState<ComintyQuestion[] | null>(initial.agent.questions);
+  const [questions, setQuestions] = useState<AgentQuestion[] | null>(initial.agent.questions);
   const [error, setError] = useState<string | null>(initial.status === "FAILED" ? (initial.error ?? "La génération s'est arrêtée.") : null);
   const [answering, setAnswering] = useState(false);
   const [answerError, setAnswerError] = useState<string | null>(null);
@@ -174,7 +174,7 @@ export function LetterWorkspace({ initial }: { initial: LetterView }) {
     else await start();
   }
 
-  async function answer(answers: QuestionAnswer[]) {
+  async function answer(answers: CandidateAnswer[]) {
     setAnswering(true);
     setAnswerError(null);
     try {

@@ -9,10 +9,18 @@ export type AgentClient = Pick<ComintyClient, "agentId" | "startChat" | "sendMes
 type MockTurn = { messageId: string; content: string; reply: ComintyMessage; events: ComintyEvent[]; cancelled?: boolean };
 type MockThread = { id: string; allowedIds: string[]; turns: MockTurn[] };
 
+/** Question native du faux agent sur un vrai manque de l'offre du mock : Docker, exigé, absent du profil de Camille. */
 export const MOCK_QUESTION = {
-  prompt: "Qu'est-ce qui te motive dans cette offre en particulier ?",
-  options: ["Le produit ou le secteur de l'entreprise", "Les missions du poste", "La ville ou le mode de travail", "Autre (je précise en répondant)"],
+  prompt: "As-tu déjà travaillé avec Docker ? Si oui, où ?",
+  options: ["Oui", "Non"],
 };
+
+/** Réponse « needs_input » du faux agent : l'analyse et les manques accompagnent la question (comme le vrai agent). */
+const mockNeedsInput = () => ({
+  status: "needs_input",
+  analysis: MOCK_FIXTURES.offer_analysis,
+  gaps: [{ requirement: "Docker", importance: "required" }],
+});
 
 /** "{{source:N}}" → N-ième id autorisé (comme le provider mock), pour que la réponse vaille pour n'importe quel profil. */
 function fillSources(value: unknown, ids: string[]): unknown {
@@ -72,7 +80,7 @@ export function createMockComintyClient(options: { delayMs?: number; askFirst?: 
     const messageId = `mock-msg-${crypto.randomUUID()}`;
     const isFirst = thread.turns.length === 0;
     const ask = askFirst && isFirst;
-    const text = JSON.stringify(ask ? { status: "needs_input" } : (options.readyReply ?? mockReadyReply)(thread.allowedIds));
+    const text = JSON.stringify(ask ? mockNeedsInput() : (options.readyReply ?? mockReadyReply)(thread.allowedIds));
     const reply: ComintyMessage = {
       id: messageId,
       thread_id: thread.id,

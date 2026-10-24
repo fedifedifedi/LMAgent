@@ -85,12 +85,16 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
 
     const first = await follow(runId, client);
     expect(first.filter((e) => e.type === "step").length).toBeGreaterThanOrEqual(4);
-    expect(first.at(-1)).toEqual({ type: "questions", questions: [MOCK_QUESTION] });
+    // Question native de l'agent (« As-tu déjà travaillé avec Docker ? ») standardisée par le code.
+    const standard = { prompt: "As-tu déjà utilisé Docker ? Si oui, dans quel projet ou quelle expérience ?", options: ["Oui (je précise)", "Non", "Non, mais je souhaite l'apprendre", "Passer"], requirement: "Docker" };
+    expect(first.at(-1)).toEqual({ type: "questions", questions: [standard] });
+    expect(MOCK_QUESTION.prompt).not.toBe(standard.prompt);
     let view = (await getLetterView(letter.id))!;
     expect(view.status).toBe("NEEDS_INPUT");
-    expect(view.agent.questions?.[0].prompt).toBe(MOCK_QUESTION.prompt);
+    expect(view.agent.questions?.[0]).toEqual(standard);
+    expect(view.analysis?.company).toBe("Ateliers Nova"); // l'offre analysée s'affiche pendant l'attente
 
-    const answerRun = await answerAgentRun(letter.id, [{ prompt: MOCK_QUESTION.prompt, answer: "Les missions du poste" }], client);
+    const answerRun = await answerAgentRun(letter.id, [{ prompt: standard.prompt, requirement: "Docker", choice: "no" }], client);
     const second = await follow(answerRun, client);
     expect(second.at(-1)).toEqual({ type: "done" });
 
@@ -104,6 +108,33 @@ describe("lettre par l'agent (faux agent Cominty)", () => {
     expect(view.agent.activeRunId).toBeNull();
     expect(view.usage.filter((u) => u.step === "AGENT_LETTER")).toHaveLength(2);
     expect(view.sources["candidate-answers"]).toBe("Tes réponses à l'agent");
+  });
+
+  test("« Rédiger sans répondre » : question réaffichée au rechargement, puis tout passé, lettre sans la compétence", async () => {
+    const client = createMockComintyClient({ delayMs: 0 });
+    const letter = await newLetter();
+    await follow(await startAgentRun(letter.id, client), client);
+    // Rechargement pendant l'attente : la question est relue en base, aucun agent ne tourne.
+    const waiting = (await getLetterView(letter.id))!;
+    expect(waiting.agent).toMatchObject({ activeRunId: null });
+    expect(waiting.agent.questions?.[0].requirement).toBe("Docker");
+
+    const skipped = waiting.agent.questions!.map((q) => ({ prompt: q.prompt, requirement: q.requirement, choice: "skip" as const }));
+    const answerRun = await answerAgentRun(letter.id, skipped, client);
+    expect((await follow(answerRun, client)).at(-1)).toEqual({ type: "done" });
+    expect((await db.agentRun.findUniqueOrThrow({ where: { id: answerRun } })).answers).toEqual(skipped);
+    const view = (await getLetterView(letter.id))!;
+    expect(view.status).toBe("GENERATED");
+    expect(view.match?.requirements.find((r) => r.name === "Docker")?.status).toBe("missing");
+  });
+
+  test("« Oui » sans précision : refusé côté serveur, aucun appel", async () => {
+    const client = createMockComintyClient({ delayMs: 0 });
+    const letter = await newLetter();
+    await follow(await startAgentRun(letter.id, client), client);
+    const runs = await db.agentRun.count({ where: { letterId: letter.id } });
+    await expect(answerAgentRun(letter.id, [{ prompt: "q", requirement: "Docker", choice: "yes", detail: " " }], client)).rejects.toThrow("Précise le projet");
+    expect(await db.agentRun.count({ where: { letterId: letter.id } })).toBe(runs);
   });
 
   test("rechargement : les étapes sont rejouées depuis la base, sans doublon ni nouvel appel", async () => {
