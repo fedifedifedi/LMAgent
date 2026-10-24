@@ -50,6 +50,11 @@ export function AgentTimeline({ steps, phase, replay = false, review = null }: {
           <div className={`h-full rounded-full ${phase === "failed" ? "bg-destructive" : "bg-primary"}`} style={{ width: phase === "idle" ? "0%" : "100%" }} />
         )}
       </div>
+      {phase === "running" && (
+        <p className="text-sm text-muted-foreground">
+          La rédaction prend généralement plusieurs minutes. Tu peux quitter cette page et revenir plus tard, ta lettre sera prête.
+        </p>
+      )}
       {steps.length === 0 ? (
         <p className="text-sm text-muted-foreground">{phase === "running" ? "Connexion à l'agent…" : "Aucune étape pour l'instant."}</p>
       ) : (

@@ -424,8 +424,11 @@ export async function followAgentRun(runId: string, client: AgentClient, emit: (
           const key = eventKey(event);
           if (known.has(key)) continue;
           known.add(key);
-          const saved = await db.agentEvent.create({
-            data: { runId: run.id, eventId: key, correlationId: event.correlation_id, name: event.name, status: event.status, label: eventLabel(event), at: new Date(event.at) },
+          // upsert : deux suivis peuvent tourner en même temps (le serveur continue après le départ du navigateur, qui revient).
+          const saved = await db.agentEvent.upsert({
+            where: { runId_eventId: { runId: run.id, eventId: key } },
+            create: { runId: run.id, eventId: key, correlationId: event.correlation_id, name: event.name, status: event.status, label: eventLabel(event), at: new Date(event.at) },
+            update: {},
           });
           await db.agentRun.update({ where: { id: run.id }, data: { lastEventId: event.id } });
           if (event.name === "result") await recordCost(run, event, client);

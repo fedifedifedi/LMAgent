@@ -154,6 +154,20 @@ describe("pipeline : tour allégé et correction ciblée (faux agent)", () => {
     expect(label).toBe("Relecture : 1 affirmation sans source retirée, 1 phrase sourcée ajoutée");
   });
 
+  test("deux suivis en même temps (serveur après le départ du navigateur + retour) : une seule lettre, aucune erreur", async () => {
+    const client = createMockComintyClient({ delayMs: 5, askFirst: false });
+    const sent = recording(client);
+    const letter = await newLetter();
+    const runId = await startAgentRun(letter.id, client);
+    const outcomes: string[][] = [[], []];
+    await Promise.all(outcomes.map((list) => followAgentRun(runId, client, (e) => list.push(e.type))));
+    expect(outcomes.map((list) => list.at(-1))).toEqual(["done", "done"]);
+    expect(sent).toHaveLength(0);
+    const view = (await getLetterView(letter.id))!;
+    expect(view.status).toBe("GENERATED");
+    expect(new Set(view.agent.timeline.map((s) => s.key)).size).toBe(view.agent.timeline.length);
+  });
+
   test("correction ciblée au mauvais format : première lettre gardée, points signalés, aucun nouveau tour", async () => {
     const client = createMockComintyClient({
       delayMs: 0,

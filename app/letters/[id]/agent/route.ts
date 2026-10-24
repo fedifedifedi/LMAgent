@@ -5,7 +5,7 @@ import { followAgentRun, markFollowFailure, type AgentStreamEvent } from "@/lib/
 
 /**
  * Étapes de l'agent Cominty en direct (Server-Sent Events) : rejoue les étapes enregistrées puis relaie le flux.
- * La clé reste côté serveur. Fermer la page n'arrête pas l'agent : la reprise se fait au prochain affichage.
+ * La clé reste côté serveur. Fermer la page n'arrête ni l'agent ni son suivi par le serveur.
  */
 export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]/agent">) {
   const { id } = await ctx.params;
@@ -26,7 +26,9 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/letters/[id]
       try {
         controller.enqueue(encoder.encode(": connecté\n\n"));
         // Client choisi d'après le message : rejeu (démo), faux agent ou vrai Cominty protégé (plafond, coûts).
-        await followAgentRun(runId!, clientForMessage(run.messageId), send, request.signal);
+        // Sans le signal de la requête : si le navigateur part, le serveur suit l'agent jusqu'au bout (relecture et
+        // correction comprises) et la lettre est prête au retour.
+        await followAgentRun(runId!, clientForMessage(run.messageId), send);
       } catch (error) {
         // Jamais d'erreur brute (Zod, Prisma) à l'écran ; la lettre devient reprenable au lieu de se relancer seule.
         send({ type: "failed", error: await markFollowFailure(id, error) });
