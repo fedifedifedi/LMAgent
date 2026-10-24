@@ -17,6 +17,15 @@
 
 </div>
 
+## In short (English)
+
+Generic cover letters are easy to spot, and AI tools that "embellish" a CV do more harm than good.
+LMAgent hands the letter to a **Cominty managed agent** that analyses the job offer against the candidate's CV,
+**asks the candidate about missing requirements instead of inventing them**, writes a one-page letter, then reviews
+itself: the code flags every claim without a source and the agent corrects or removes it.
+Cominty runs everything AI: CV extraction, native questions, the streamed agent steps shown live, and targeted corrections.
+**Live demo: https://lmagent-production.up.railway.app** (the demo button replays a real agent run, no access code needed).
+
 ## En bref
 
 Une lettre de motivation générique se repère tout de suite, et une IA qui « enjolive » le CV fait plus de tort que de bien.
